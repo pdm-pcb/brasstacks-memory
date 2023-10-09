@@ -17,6 +17,8 @@ public:
     [[nodiscard]] std::size_t peak_used()      const { return _peak_used;      }
     [[nodiscard]] std::size_t peak_allocs()    const { return _peak_allocs;    }
 
+    [[nodiscard]] float calc_fragmentation() const;
+
     [[nodiscard]] char * raw_heap() { return _raw_heap; }
 
     Heap() = delete;

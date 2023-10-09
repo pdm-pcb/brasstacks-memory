@@ -34,6 +34,9 @@ struct alignas(16) BlockHeader final {
 
     BlockHeader *next = nullptr;
     BlockHeader *prev = nullptr;
+
+private:
+    std::size_t const _padding = 0;
 };
 
 } // namespace btx::memory

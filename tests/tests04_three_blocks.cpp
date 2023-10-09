@@ -1,261 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include "brasstacks/memory/BlockHeader.hpp"
 #include "brasstacks/memory/Heap.hpp"
 
 using namespace btx::memory;
-
-TEST_CASE("Heap creation and initial state metrics") {
-    std::size_t const heap_size = 512;
-    Heap heap(heap_size);
-
-    // First check the heap's internal metrics
-    REQUIRE(heap.current_used() == sizeof(BlockHeader));
-    REQUIRE(heap.current_allocs() == 0);
-    REQUIRE(heap.peak_used() == heap.current_used());
-    REQUIRE(heap.peak_allocs() == heap.current_allocs());
-
-    // Next check the heap's structure
-    char *raw_heap = heap.raw_heap();
-    auto *free_header = reinterpret_cast<BlockHeader *>(raw_heap);
-
-    REQUIRE(free_header->size == heap_size - sizeof(BlockHeader));
-    REQUIRE(free_header->prev == nullptr);
-    REQUIRE(free_header->next == nullptr);
-}
-
-TEST_CASE("Allocate and free a single block") {
-    std::size_t const heap_size = 512;
-    Heap heap(heap_size);
-
-    // Allocate one block
-    std::size_t const size_a = 64;
-    void *alloc_a = heap.alloc(size_a);
-    ::memset(alloc_a, 0, size_a);
-
-    // Check the heap's internal metrics
-    REQUIRE(heap.current_used() == size_a + 2 * sizeof(BlockHeader));
-    REQUIRE(heap.current_allocs() == 1);
-    REQUIRE(heap.peak_used() == heap.current_used());
-    REQUIRE(heap.peak_allocs() == heap.current_allocs());
-
-    // Check that the BlockHeader helper functions produce interchangable
-    // addresses
-    BlockHeader *header_a = BlockHeader::header(alloc_a);
-    REQUIRE(header_a->size == size_a);
-    REQUIRE(alloc_a == BlockHeader::payload(header_a));
-
-    // The header for our sole allocation is at the very beginning of the heap
-    char *raw_heap = heap.raw_heap();
-    REQUIRE(reinterpret_cast<char *>(header_a) == raw_heap);
-
-    // The free block header is now at +96 bytes
-    auto *free_header = reinterpret_cast<BlockHeader *>(
-        raw_heap + sizeof(BlockHeader) + header_a->size
-    );
-
-    // And the free block is 384 bytes in size
-    REQUIRE(free_header->size ==
-        heap_size - (
-            2 * sizeof(BlockHeader)
-            + header_a->size
-        )
-    );
-
-    // Now free the block
-    heap.free(alloc_a);
-
-    // The heap's internal metrics should be back to their initial state
-    REQUIRE(heap.current_used() == sizeof(BlockHeader));
-    REQUIRE(heap.current_allocs() == 0);
-    REQUIRE(heap.peak_used() == size_a + 2 * sizeof(BlockHeader));
-    REQUIRE(heap.peak_allocs() == 1);
-}
-
-TEST_CASE("Allocate and free two blocks, free a->b") {
-    std::size_t const heap_size = 256;
-    Heap heap(heap_size);
-
-    // Allocate two blocks
-    std::size_t const size_a = 64;
-    std::size_t const size_b = 96;
-
-    void *alloc_a = heap.alloc(size_a);
-    void *alloc_b = heap.alloc(size_b);
-
-    ::memset(alloc_a, 0, size_a);
-    ::memset(alloc_b, 0, size_b);
-
-    // Check the heap's internal metrics
-    REQUIRE(heap.current_used() ==
-        3 * sizeof(BlockHeader)
-        + size_a
-        + size_b);
-    REQUIRE(heap.current_allocs() == 2);
-    REQUIRE(heap.peak_used() == heap.current_used());
-    REQUIRE(heap.peak_allocs() == heap.current_allocs());
-
-    // Check that the BlockHeader helper functions produce interchangable
-    // addresses
-    BlockHeader *header_a = BlockHeader::header(alloc_a);
-    REQUIRE(header_a->size == size_a);
-    REQUIRE(alloc_a == BlockHeader::payload(header_a));
-
-    BlockHeader *header_b = BlockHeader::header(alloc_b);
-    REQUIRE(header_b->size == size_b);
-    REQUIRE(alloc_b == BlockHeader::payload(header_b));
-
-    // The first header is at the very beginning of the heap
-    char *raw_heap = heap.raw_heap();
-    REQUIRE(reinterpret_cast<char *>(header_a) == raw_heap);
-
-    // The second header is at +96 bytes
-    REQUIRE(reinterpret_cast<char *>(header_b) ==
-        raw_heap
-        + sizeof(BlockHeader)
-        + size_a
-    );
-
-    // The free block header is at +252 bytes
-    auto *free_header = reinterpret_cast<BlockHeader *>(
-        raw_heap
-        + 2 * sizeof(BlockHeader)
-        + size_a
-        + size_b
-    );
-
-    // And the free block is 0 bytes in size, given a 32 byte BlockHeader
-    REQUIRE(free_header->size ==
-        heap_size - (
-            3 * sizeof(BlockHeader)
-            + size_a
-            + size_b
-        )
-    );
-
-    // Now free the first block
-    heap.free(alloc_a);
-
-    // Check the heap stats
-    REQUIRE(heap.current_used() == size_b + 3 * sizeof(BlockHeader));
-    REQUIRE(heap.current_allocs() == 1);
-    REQUIRE(heap.peak_used() == 3 * sizeof(BlockHeader) + size_a + size_b);
-    REQUIRE(heap.peak_allocs() == 2);
-
-    // At this point, we've got a free block of 64 behind header_b and what
-    // was previously called free_header is the second free block in the list
-    REQUIRE(header_a->next == free_header);
-    REQUIRE(free_header->prev == header_a);
-    REQUIRE(header_a->size == size_a);
-    REQUIRE(free_header->size == heap_size - (3 * sizeof(BlockHeader)
-                                              + size_a
-                                              + size_b));
-
-    // Free the second block
-    heap.free(alloc_b);
-
-    // Check the heap stats
-    REQUIRE(heap.current_used() == sizeof(BlockHeader));
-    REQUIRE(heap.current_allocs() == 0);
-    REQUIRE(heap.peak_used() == 3 * sizeof(BlockHeader) + size_a + size_b);
-    REQUIRE(heap.peak_allocs() == 2);
-
-    // Given that the second block was between the first and free blocks, the
-    // entire heap should now be back to a single free block
-    REQUIRE(header_a->size == heap_size - sizeof(BlockHeader));
-    REQUIRE(header_a->next == nullptr);
-    REQUIRE(header_a->prev == nullptr);
-}
-
-TEST_CASE("Allocate and free two blocks, free b->a") {
-    std::size_t const heap_size = 256;
-    Heap heap(heap_size);
-
-    // Allocate two blocks
-    std::size_t const size_a = 64;
-    std::size_t const size_b = 96;
-
-    void *alloc_a = heap.alloc(size_a);
-    void *alloc_b = heap.alloc(size_b);
-
-    ::memset(alloc_a, 0, size_a);
-    ::memset(alloc_b, 0, size_b);
-
-    // Check the heap's internal metrics
-    REQUIRE(heap.current_used() ==
-        3 * sizeof(BlockHeader)
-        + size_a
-        + size_b);
-    REQUIRE(heap.current_allocs() == 2);
-    REQUIRE(heap.peak_used() == heap.current_used());
-    REQUIRE(heap.peak_allocs() == heap.current_allocs());
-
-    // Check that the BlockHeader helper functions produce interchangable
-    // addresses
-    BlockHeader *header_a = BlockHeader::header(alloc_a);
-    REQUIRE(header_a->size == size_a);
-    REQUIRE(alloc_a == BlockHeader::payload(header_a));
-
-    BlockHeader *header_b = BlockHeader::header(alloc_b);
-    REQUIRE(header_b->size == size_b);
-    REQUIRE(alloc_b == BlockHeader::payload(header_b));
-
-    // The first header is at the very beginning of the heap
-    char *raw_heap = heap.raw_heap();
-    REQUIRE(reinterpret_cast<char *>(header_a) == raw_heap);
-
-    // The second header is at +96 bytes
-    REQUIRE(reinterpret_cast<char *>(header_b) ==
-        raw_heap
-        + sizeof(BlockHeader)
-        + size_a
-    );
-
-    // The free block header is at +252 bytes
-    auto *free_header = reinterpret_cast<BlockHeader *>(
-        raw_heap
-        + 2 * sizeof(BlockHeader)
-        + size_a
-        + size_b
-    );
-
-    // And the free block is 0 bytes in size, given a 32 byte BlockHeader
-    REQUIRE(free_header->size ==
-        heap_size - (
-            3 * sizeof(BlockHeader)
-            + size_a
-            + size_b)
-    );
-
-    // Now free the second block
-    heap.free(alloc_b);
-
-    // Check the heap stats
-    REQUIRE(heap.current_used() == size_a + 2 * sizeof(BlockHeader));
-    REQUIRE(heap.current_allocs() == 1);
-    REQUIRE(heap.peak_used() == 3 * sizeof(BlockHeader) + size_a + size_b);
-    REQUIRE(heap.peak_allocs() == 2);
-
-    // At this point, the free list is just header_b plus the 32 bytes it
-    // absorbed when we coalesced the zero-byte block previosuly called
-    // free_header
-    REQUIRE(header_b->next == nullptr);
-    REQUIRE(header_b->size == size_b + sizeof(BlockHeader));
-    REQUIRE(header_a->size == size_a);
-
-    // Free the first block
-    heap.free(alloc_a);
-
-    // Check the heap stats
-    REQUIRE(heap.current_used() == sizeof(BlockHeader));
-    REQUIRE(heap.current_allocs() == 0);
-    REQUIRE(heap.peak_used() == 3 * sizeof(BlockHeader) + size_a + size_b);
-    REQUIRE(heap.peak_allocs() == 2);
-
-    // The entire heap should now be back to a single free block
-    REQUIRE(header_a->size == heap_size - sizeof(BlockHeader));
-    REQUIRE(header_a->next == nullptr);
-    REQUIRE(header_a->prev == nullptr);
-}
+using namespace Catch::Matchers;
+float constexpr epsilon = 1.0e-6f;
 
 TEST_CASE("Allocate and free three blocks, free a->b->c") {
     std::size_t const heap_size = 512;
@@ -268,10 +18,6 @@ TEST_CASE("Allocate and free three blocks, free a->b->c") {
     void *alloc_a = heap.alloc(size_a);
     void *alloc_b = heap.alloc(size_b);
     void *alloc_c = heap.alloc(size_c);
-
-    ::memset(alloc_a, 0, size_a);
-    ::memset(alloc_b, 0, size_b);
-    ::memset(alloc_c, 0, size_c);
 
     // Check the heap's internal metrics
     REQUIRE(heap.current_used() ==
@@ -347,6 +93,9 @@ TEST_CASE("Allocate and free three blocks, free a->b->c") {
     REQUIRE(heap.peak_used() == 416);
     REQUIRE(heap.peak_allocs() == 3);
 
+    // Given 64+96=160 bytes total free, fragmentation is ~0.4
+    REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.4f, epsilon));
+
     // header_a has become the "true" free_header, which means the next pointer
     // directs us to the free chunk at the end of the heap
     REQUIRE(header_a->next == free_header);
@@ -365,6 +114,9 @@ TEST_CASE("Allocate and free three blocks, free a->b->c") {
     REQUIRE(heap.peak_used() == 416);
     REQUIRE(heap.peak_allocs() == 3);
 
+    // Given 192+96=288 bytes total free, fragmentation is ~0.33
+    REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs((1.0f/3.0f), epsilon));
+
     // header_a->next still  points to the free block at the end of the heap
     REQUIRE(header_a->next == free_header);
 
@@ -381,6 +133,9 @@ TEST_CASE("Allocate and free three blocks, free a->b->c") {
     REQUIRE(heap.current_allocs() == 0);
     REQUIRE(heap.peak_used() == 416);
     REQUIRE(heap.peak_allocs() == 3);
+
+    // Everything is free, so fragmentation should be at zero
+    REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.0f, epsilon));
 
     // There's no more free block at the end of the heap, so header_a->next
     // points nowhere
@@ -401,10 +156,6 @@ TEST_CASE("Allocate and free three blocks, free c->b->a") {
     void *alloc_a = heap.alloc(size_a);
     void *alloc_b = heap.alloc(size_b);
     void *alloc_c = heap.alloc(size_c);
-
-    ::memset(alloc_a, 0, size_a);
-    ::memset(alloc_b, 0, size_b);
-    ::memset(alloc_c, 0, size_c);
 
     BlockHeader *header_a = BlockHeader::header(alloc_a);
     BlockHeader *header_b = BlockHeader::header(alloc_b);
@@ -475,13 +226,8 @@ TEST_CASE("Allocate and free three blocks, free b->a->c") {
     void *alloc_b = heap.alloc(size_b);
     void *alloc_c = heap.alloc(size_c);
 
-    ::memset(alloc_a, 0, size_a);
-    ::memset(alloc_b, 0, size_b);
-    ::memset(alloc_c, 0, size_c);
-
     BlockHeader *header_a = BlockHeader::header(alloc_a);
     BlockHeader *header_b = BlockHeader::header(alloc_b);
-    BlockHeader *header_c = BlockHeader::header(alloc_c);
 
     auto *free_header = reinterpret_cast<BlockHeader *>(heap.raw_heap() + 384);
 
@@ -552,13 +298,8 @@ TEST_CASE("Allocate and free three blocks, free b->c->a") {
     void *alloc_b = heap.alloc(size_b);
     void *alloc_c = heap.alloc(size_c);
 
-    ::memset(alloc_a, 0, size_a);
-    ::memset(alloc_b, 0, size_b);
-    ::memset(alloc_c, 0, size_c);
-
     BlockHeader *header_a = BlockHeader::header(alloc_a);
     BlockHeader *header_b = BlockHeader::header(alloc_b);
-    BlockHeader *header_c = BlockHeader::header(alloc_c);
 
     auto *free_header = reinterpret_cast<BlockHeader *>(heap.raw_heap() + 384);
 

@@ -6,6 +6,30 @@
 namespace btx::memory {
 
 // =============================================================================
+float Heap::calc_fragmentation() const {
+    std::size_t total_free = 0;
+    std::size_t largest_free_block_size = 0;
+    BlockHeader *current_header = _free_head;
+
+    while(current_header != nullptr) {
+        if(current_header->size > largest_free_block_size) {
+            largest_free_block_size = current_header->size;
+        }
+        total_free += current_header->size;
+        current_header = current_header->next;
+    }
+
+    if(total_free == 0) {
+        return 0.0f;
+    }
+
+    return 1.0f - (
+        static_cast<float>(largest_free_block_size)
+        / static_cast<float>(total_free)
+    );
+}
+
+// =============================================================================
 void * Heap::alloc(std::size_t const bytes) {
     assert(bytes > 0 && "Cannot allocate zero bytes");
 
