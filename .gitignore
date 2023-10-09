@@ -1,0 +1,10 @@
+.vs/
+.vscode/
+build/
+debug/
+release/
+
+**/*.ilk
+**/*.pdb
+**/*.exe.manifest
+**/*.exe
