@@ -1,8 +1,6 @@
 #include "brasstacks/memory/Heap.hpp"
 #include "brasstacks/memory/BlockHeader.hpp"
 
-#include <iostream>
-
 namespace btx::memory {
 
 // =============================================================================
@@ -43,6 +41,7 @@ void * Heap::alloc(std::size_t const bytes) {
         if(current_block->size >= bytes) {
             break;
         }
+        current_block = current_block->next;
     }
 
     // We couldn't find a block of sufficient size, so the allocation has
@@ -160,8 +159,6 @@ void Heap::free(void *address) {
             _coalesce_down_from_block(current_block);
         }
     }
-
-    address = nullptr;
 }
 
 // =============================================================================

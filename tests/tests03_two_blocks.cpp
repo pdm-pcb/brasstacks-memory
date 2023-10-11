@@ -19,10 +19,7 @@ TEST_CASE("Allocate and free two blocks, free a->b") {
     void *alloc_b = heap.alloc(size_b);
 
     // Check the heap's internal metrics
-    REQUIRE(heap.current_used() ==
-        3 * sizeof(BlockHeader)
-        + size_a
-        + size_b);
+    REQUIRE(heap.current_used() == 3 * sizeof(BlockHeader) + size_a + size_b);
     REQUIRE(heap.current_allocs() == 2);
     REQUIRE(heap.peak_used() == heap.current_used());
     REQUIRE(heap.peak_allocs() == heap.current_allocs());
@@ -47,26 +44,17 @@ TEST_CASE("Allocate and free two blocks, free a->b") {
 
     // The second header is at +96 bytes
     REQUIRE(reinterpret_cast<char *>(header_b) ==
-        raw_heap
-        + sizeof(BlockHeader)
-        + size_a
+        raw_heap + sizeof(BlockHeader) + size_a
     );
 
-    // The free block header is at +252 bytes
+    // The free block header is at +224 bytes
     auto *free_header = reinterpret_cast<BlockHeader *>(
-        raw_heap
-        + 2 * sizeof(BlockHeader)
-        + size_a
-        + size_b
+        raw_heap + 2 * sizeof(BlockHeader) + size_a + size_b
     );
 
     // And the free block is 0 bytes in size, given a 32 byte BlockHeader
     REQUIRE(free_header->size ==
-        heap_size - (
-            3 * sizeof(BlockHeader)
-            + size_a
-            + size_b
-        )
+        heap_size - (3 * sizeof(BlockHeader) + size_a + size_b)
     );
 
     // free_header->next should point nowhere
@@ -118,10 +106,7 @@ TEST_CASE("Allocate and free two blocks, free b->a") {
     void *alloc_b = heap.alloc(size_b);
 
     // Check the heap's internal metrics
-    REQUIRE(heap.current_used() ==
-        3 * sizeof(BlockHeader)
-        + size_a
-        + size_b);
+    REQUIRE(heap.current_used() == 3 * sizeof(BlockHeader) + size_a + size_b);
     REQUIRE(heap.current_allocs() == 2);
     REQUIRE(heap.peak_used() == heap.current_used());
     REQUIRE(heap.peak_allocs() == heap.current_allocs());
@@ -151,20 +136,14 @@ TEST_CASE("Allocate and free two blocks, free b->a") {
         + size_a
     );
 
-    // The free block header is at +252 bytes
+    // The free block header is at +224 bytes
     auto *free_header = reinterpret_cast<BlockHeader *>(
-        raw_heap
-        + 2 * sizeof(BlockHeader)
-        + size_a
-        + size_b
+        raw_heap + 2 * sizeof(BlockHeader) + size_a + size_b
     );
 
     // And the free block is 0 bytes in size, given a 32 byte BlockHeader
     REQUIRE(free_header->size ==
-        heap_size - (
-            3 * sizeof(BlockHeader)
-            + size_a
-            + size_b)
+        heap_size - (3 * sizeof(BlockHeader) + size_a + size_b)
     );
 
     // free_header->next should point nowhere

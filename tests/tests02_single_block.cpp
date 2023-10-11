@@ -40,10 +40,7 @@ TEST_CASE("Allocate and free a single block") {
 
     // And the free block is 384 bytes in size
     REQUIRE(free_header->size ==
-        heap_size - (
-            2 * sizeof(BlockHeader)
-            + header_a->size
-        )
+        heap_size - (header_a->size + 2 * sizeof(BlockHeader))
     );
 
     // free_header->next should point nowhere
