@@ -7,7 +7,15 @@ FetchContent_Declare(
     FIND_PACKAGE_ARGS 3.3.2
 )
 
+FetchContent_Declare(
+    nanobench
+    GIT_REPOSITORY https://github.com/martinus/nanobench.git
+    GIT_TAG a5a50c2b33eea2ff1fcb355cacdface43eb42b25 # 2023-02-16
+    FIND_PACKAGE_ARGS 4.3.11
+)
+
 FetchContent_MakeAvailable(Catch2)
+FetchContent_MakeAvailable(nanobench)
 
 file(
     GLOB_RECURSE TESTS_SOURCE
@@ -34,6 +42,7 @@ target_link_libraries(
 	brasstacks-memory-tests PUBLIC
 	brasstacks_memory
     Catch2::Catch2WithMain
+    nanobench
 )
 
 set_target_properties(

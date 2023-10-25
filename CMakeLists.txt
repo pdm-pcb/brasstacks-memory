@@ -11,4 +11,7 @@ project(
 )
 
 add_subdirectory(src)
-add_subdirectory(tests)
+
+if (${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
+    add_subdirectory(tests)
+endif()

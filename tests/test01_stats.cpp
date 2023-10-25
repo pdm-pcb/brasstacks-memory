@@ -1,11 +1,10 @@
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include "brasstacks/memory/BlockHeader.hpp"
 #include "brasstacks/memory/Heap.hpp"
 
+#include "test_helpers.hpp"
+
 using namespace btx::memory;
 using namespace Catch::Matchers;
-float constexpr epsilon = 1.0e-6f;
 
 TEST_CASE("Heap creation and initial state metrics") {
     std::size_t const heap_size = 512;
