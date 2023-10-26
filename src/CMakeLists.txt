@@ -18,11 +18,6 @@ target_include_directories(
     ${CMAKE_SOURCE_DIR}/include/
 )
 
-target_precompile_headers(
-    brasstacks_memory PUBLIC
-    ${CMAKE_SOURCE_DIR}/include/brasstacks/memory/pch.hpp
-)
-
 if(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
     target_compile_options(
         brasstacks_memory PUBLIC

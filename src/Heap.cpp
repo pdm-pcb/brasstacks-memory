@@ -1,6 +1,9 @@
 #include "brasstacks/memory/Heap.hpp"
 #include "brasstacks/memory/BlockHeader.hpp"
 
+#include <cassert>
+#include <cstdlib>
+
 namespace btx::memory {
 
 // =============================================================================
@@ -32,6 +35,7 @@ void * Heap::alloc(std::size_t const bytes) {
     assert(bytes > 0 && "Cannot allocate zero bytes");
 
     if(bytes <= 0) {
+        assert(false && "Cannot allocate zero or fewer bytes");
         return nullptr;
     }
 
@@ -47,6 +51,7 @@ void * Heap::alloc(std::size_t const bytes) {
     // We couldn't find a block of sufficient size, so the allocation has
     // failed and the user will need to handle it how they see fit
     if(current_block == nullptr) {
+        assert(false && "Failed to allocate block");
         return nullptr;
     }
 
@@ -99,6 +104,7 @@ void Heap::free(void *address) {
     assert(address != nullptr && "Cannot free nullptr");
 
     if(address == nullptr) {
+        assert(false && "Attempting to free memory twice");
         return;
     }
 

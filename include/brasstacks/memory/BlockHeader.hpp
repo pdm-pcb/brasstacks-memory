@@ -1,7 +1,7 @@
 #ifndef BRASSTACKS_MEMORY_BLOCKHEADER_HPP
 #define BRASSTACKS_MEMORY_BLOCKHEADER_HPP
 
-#include "brasstacks/memory/pch.hpp"
+#include <cstddef>
 
 namespace btx::memory {
 
