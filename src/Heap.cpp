@@ -32,8 +32,6 @@ float Heap::calc_fragmentation() const {
 
 // =============================================================================
 void * Heap::alloc(std::size_t const bytes) {
-    assert(bytes > 0 && "Cannot allocate zero bytes");
-
     if(bytes <= 0) {
         assert(false && "Cannot allocate zero or fewer bytes");
         return nullptr;
@@ -120,15 +118,13 @@ void Heap::free(void *address) {
         _free_head = block_to_free;
     }
     else if(block_to_free < _free_head) {
-        // If the newly freed block has a lower memory address than the free
+        // If the newly freed block has a earlier memory address than the free
         // list's current head, the freed block becomes the new head
         block_to_free->next = _free_head;
         block_to_free->prev = nullptr;
         _free_head->prev = block_to_free;
 
         _free_head = block_to_free;
-
-        _coalesce_down_from_block(_free_head);
     }
     else {
         // Otherwise the newly freed block will land somewhere after the head.
@@ -154,21 +150,14 @@ void Heap::free(void *address) {
         if(block_to_free->prev != nullptr) {
             block_to_free->prev->next = block_to_free;
         }
-
-        // If the previous block and the newly freed block are adjacent,
-        // coalesce them
-        if(reinterpret_cast<BlockHeader *>(
-            reinterpret_cast<char *>(BlockHeader::payload(current_block))
-            + current_block->size
-        ) == block_to_free)
-        {
-            _coalesce_down_from_block(current_block);
-        }
     }
+
+    _coalesce(block_to_free);
 }
 
 // =============================================================================
 Heap::Heap(std::size_t const bytes) :
+    _total_size     { bytes },
     _raw_heap       { reinterpret_cast<char *>(::malloc(bytes)) },
     _current_used   { sizeof(BlockHeader) },
     _current_allocs { 0 },
@@ -225,35 +214,51 @@ void Heap::_split_free_block(BlockHeader *block, std::size_t const bytes) {
 }
 
 // =============================================================================
-void Heap::_coalesce_down_from_block(BlockHeader *top_block) {
-    BlockHeader *current_block = top_block;
-    while(current_block != nullptr) {
+void Heap::_coalesce(BlockHeader *header) {
+
+    if(header->next != nullptr) {
+        // If the current block's payload plus its own size is the same
+        // location as header->next, that means the blocks are contiguous
         auto *next_header_from_offset = reinterpret_cast<BlockHeader *>(
-            reinterpret_cast<char *>(BlockHeader::payload(current_block))
-            + current_block->size
+            reinterpret_cast<char *>(BlockHeader::payload(header))
+            + header->size
         );
 
-        if(current_block->next == nullptr) {
-            break;
-        }
+        if(next_header_from_offset == header->next) {
+            // Grow the size of the current block by absorbing the next
+            auto *next_header = header->next;
+            header->size += sizeof(BlockHeader) + next_header->size;
 
-        if(current_block->next == next_header_from_offset) {
-            // Sum the size
-            top_block->size += sizeof(BlockHeader) + current_block->next->size;
+            // Fix the pointers
+            header->next = next_header->next;
+            next_header->next = nullptr;
+            next_header->prev = nullptr;
 
-            // Fix the list pointers
-            top_block->next = current_block->next->next;
-            if(top_block->next != nullptr) {
-                top_block->next->prev = top_block;
-            }
-
-            // We've coalesced, so _current_used shrinks by one BlockHeader
+            // Since two blocks merged, there's one less header being used
             _current_used -= sizeof(BlockHeader);
         }
-        else {
-            // We only need to advance along the linked list if we didn't
-            // actually coalesce above
-            current_block = current_block->next;
+    }
+
+    if(header->prev != nullptr) {
+        // This is the same strategy as above, but measuring forward from
+        // header->prev
+        auto *prev_header_from_offset = reinterpret_cast<BlockHeader *>(
+            reinterpret_cast<char *>(BlockHeader::payload(header->prev))
+            + header->prev->size
+        );
+
+        if(prev_header_from_offset == header) {
+            // Grow the size of the current block by absorbing the next
+            auto *prev_header = header->prev;
+            prev_header->size += sizeof(BlockHeader) + header->size;
+
+            // Fix the pointers
+            prev_header->next = header->next;
+            header->next = nullptr;
+            header->prev = nullptr;
+
+            // Since two blocks merged, there's one less header being used
+            _current_used -= sizeof(BlockHeader);
         }
     }
 }

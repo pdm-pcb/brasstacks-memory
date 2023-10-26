@@ -15,6 +15,7 @@ TEST_CASE("Allocate and free a single block") {
     void *alloc_a = heap.alloc(size_a);
 
     // Check the heap's internal metrics
+    REQUIRE(heap.total_size() == 512);
     REQUIRE(heap.current_used() == size_a + 2 * sizeof(BlockHeader));
     REQUIRE(heap.current_allocs() == 1);
     REQUIRE(heap.peak_used() == heap.current_used());
@@ -49,6 +50,7 @@ TEST_CASE("Allocate and free a single block") {
     heap.free(alloc_a);
 
     // The heap's internal metrics should be back to their initial state
+    REQUIRE(heap.total_size() == 512);
     REQUIRE(heap.current_used() == sizeof(BlockHeader));
     REQUIRE(heap.current_allocs() == 0);
     REQUIRE(heap.peak_used() == size_a + 2 * sizeof(BlockHeader));
@@ -65,6 +67,7 @@ TEST_CASE("Allocate and free a single block, filling the heap") {
     void *alloc_a = heap.alloc(size_a);
 
     // Check the heap's internal metrics
+    REQUIRE(heap.total_size() == 512);
     REQUIRE(heap.current_used() == size_a + sizeof(BlockHeader));
     REQUIRE(heap.current_allocs() == 1);
     REQUIRE(heap.peak_used() == heap.current_used());
@@ -86,6 +89,7 @@ TEST_CASE("Allocate and free a single block, filling the heap") {
     heap.free(alloc_a);
 
     // The heap's internal metrics should be back to their initial state
+    REQUIRE(heap.total_size() == 512);
     REQUIRE(heap.current_used() == sizeof(BlockHeader));
     REQUIRE(heap.current_allocs() == 0);
     REQUIRE(heap.peak_used() == size_a + sizeof(BlockHeader));

@@ -13,6 +13,7 @@
 using namespace btx::memory;
 
 constexpr std::size_t alloc_count = 1000;
+constexpr std::size_t min_epoch_count = 1000;
 
 TEST_CASE("Benchmarking") {
     // The first thing we need is a good ol' RNG on which to base our ranges
@@ -67,24 +68,46 @@ TEST_CASE("Benchmarking") {
     // The benchmark object will run our lambdas at least 1000 times and
     // compare the results
     auto bench = ankerl::nanobench::Bench()
-        .minEpochIterations(1000)
+        .minEpochIterations(min_epoch_count)
         .relative(true);
 
     // Test plain malloc() and free()
     bench.run(
         "libstdc malloc and free benchmark", [&] {
-            for(std::size_t alloc = 0; alloc < alloc_count/2; ++alloc) {
-                allocs[alloc] = ::malloc(alloc_sizes[alloc]);
-            }
+            std::size_t alloc = 0;
 
+            // Allocate the first half
+            do {
+                allocs[alloc] = ::malloc(alloc_sizes[alloc]);
+
+                // Zero the memory
+                ::memset(allocs[alloc], 0, alloc_sizes[alloc]);
+
+                // Write some "useful" information
+                auto *new_block = static_cast<std::size_t *>(allocs[alloc]);
+                *new_block = alloc_sizes[alloc];
+
+                ++alloc;
+            } while(alloc < alloc_count/2);
+
+            // Free the first half in random order
             for(auto const index : free_order_first_half) {
                 ::free(allocs[index]);
             }
 
-            for(std::size_t alloc = alloc_count/2; alloc < alloc_count; ++alloc) {
+            // Allocate the second half
+            do {
                 allocs[alloc] = ::malloc(alloc_sizes[alloc]);
-            }
 
+                // Same nonosense as above
+                ::memset(allocs[alloc], 0, alloc_sizes[alloc]);
+                auto *new_block = static_cast<std::size_t *>(allocs[alloc]);
+                *new_block = alloc_sizes[alloc];
+
+                ++alloc;
+            } while(alloc < alloc_count);
+
+            // Free the second half in random order
             for(auto const index : free_order_second_half) {
                 ::free(allocs[index]);
             }
@@ -103,18 +126,40 @@ TEST_CASE("Benchmarking") {
     // And test its performance
     bench.run(
         "btx::memory alloc and free benchmark", [&] {
-            for(std::size_t alloc = 0; alloc < alloc_count/2; ++alloc) {
-                allocs[alloc] = heap.alloc(alloc_sizes[alloc]);
-            }
+            std::size_t alloc = 0;
 
+            // Allocate the first half
+            do {
+                allocs[alloc] = heap.alloc(alloc_sizes[alloc]);
+
+                // Zero the memory
+                ::memset(allocs[alloc], 0, alloc_sizes[alloc]);
+
+                // Write some "useful" information
+                auto *new_block = static_cast<std::size_t *>(allocs[alloc]);
+                *new_block = alloc_sizes[alloc];
+
+                ++alloc;
+            } while(alloc < alloc_count/2);
+
+            // Free the first half in random order
             for(auto const index : free_order_first_half) {
                 heap.free(allocs[index]);
             }
 
-            for(std::size_t alloc = alloc_count/2; alloc < alloc_count; ++alloc) {
+            // Allocate the second half
+            do {
                 allocs[alloc] = heap.alloc(alloc_sizes[alloc]);
-            }
 
+                // Same nonosense as above
+                ::memset(allocs[alloc], 0, alloc_sizes[alloc]);
+                auto *new_block = static_cast<std::size_t *>(allocs[alloc]);
+                *new_block = alloc_sizes[alloc];
+
+                ++alloc;
+            } while(alloc < alloc_count);
+
+            // Free the second half in random order
             for(auto const index : free_order_second_half) {
                 heap.free(allocs[index]);
             }

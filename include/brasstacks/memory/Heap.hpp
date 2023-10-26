@@ -12,14 +12,15 @@ public:
     [[nodiscard]] void * alloc(std::size_t const bytes);
     void free(void *address);
 
+    [[nodiscard]] std::size_t total_size()     const { return _total_size;     }
     [[nodiscard]] std::size_t current_used()   const { return _current_used;   }
     [[nodiscard]] std::size_t current_allocs() const { return _current_allocs; }
     [[nodiscard]] std::size_t peak_used()      const { return _peak_used;      }
     [[nodiscard]] std::size_t peak_allocs()    const { return _peak_allocs;    }
 
-    [[nodiscard]] float calc_fragmentation() const;
-
     [[nodiscard]] char * raw_heap() { return _raw_heap; }
+
+    [[nodiscard]] float calc_fragmentation() const;
 
     Heap() = delete;
     ~Heap();
@@ -36,13 +37,14 @@ private:
     char        *_raw_heap;
     BlockHeader *_free_head;
 
+    std::size_t _total_size;
     std::size_t _current_used;
     std::size_t _current_allocs;
     std::size_t _peak_used;
     std::size_t _peak_allocs;
 
     void _split_free_block(BlockHeader *block, std::size_t const bytes);
-    void _coalesce_down_from_block(BlockHeader *top_block);
+    void _coalesce(BlockHeader *header);
 };
 
 } // namespace btx::memory
