@@ -13,7 +13,9 @@
 using namespace btx::memory;
 
 constexpr std::size_t alloc_count = 1000;
-constexpr std::size_t min_epoch_count = 1000;
+constexpr std::size_t min_epoch_count = 100;
+constexpr std::size_t min_alloc_size = 1 << 4;
+constexpr std::size_t max_alloc_size = 1 << 8;
 
 TEST_CASE("Benchmarking") {
     // The first thing we need is a good ol' RNG on which to base our ranges
@@ -25,7 +27,8 @@ TEST_CASE("Benchmarking") {
     alloc_sizes.resize(alloc_count);
 
     auto alloc_size_rng = std::bind(
-        std::uniform_int_distribution<std::size_t>(1 << 4, 1 << 8),
+        std::uniform_int_distribution<std::size_t>(min_alloc_size,
+                                                   max_alloc_size),
         rng
     );
 
@@ -70,7 +73,7 @@ TEST_CASE("Benchmarking") {
     auto bench = ankerl::nanobench::Bench()
         .minEpochIterations(min_epoch_count)
         .relative(true);
-
+//*
     // Test plain malloc() and free()
     bench.run(
         "libstdc malloc and free benchmark", [&] {
@@ -117,7 +120,10 @@ TEST_CASE("Benchmarking") {
     // Create a heap that's guaranteed to be able to hold all of our random
     // allocations
     auto heap_size_rng = std::bind(
-        std::uniform_int_distribution<std::size_t>(1 << 19, 1LL << 31),
+        std::uniform_int_distribution<std::size_t>(
+            max_alloc_size * alloc_count + 32u,
+            max_alloc_size * alloc_count * 2
+        ),
         rng
     );
 
@@ -126,10 +132,13 @@ TEST_CASE("Benchmarking") {
     // And test its performance
     bench.run(
         "btx::memory alloc and free benchmark", [&] {
+
+        // for(uint32_t count = 0; count < 50; ++count) {
             std::size_t alloc = 0;
 
             // Allocate the first half
             do {
+                // ::printf("alloc %zu: %zu bytes\n", alloc, alloc_sizes[alloc]);
                 allocs[alloc] = heap.alloc(alloc_sizes[alloc]);
 
                 // Zero the memory
@@ -144,11 +153,13 @@ TEST_CASE("Benchmarking") {
 
             // Free the first half in random order
             for(auto const index : free_order_first_half) {
+                // ::printf("  free %zu: %zu bytes\n", index, alloc_sizes[index]);
                 heap.free(allocs[index]);
             }
 
             // Allocate the second half
             do {
+                // ::printf("alloc %zu: %zu bytes\n", alloc, alloc_sizes[alloc]);
                 allocs[alloc] = heap.alloc(alloc_sizes[alloc]);
 
                 // Same nonosense as above
@@ -161,8 +172,10 @@ TEST_CASE("Benchmarking") {
 
             // Free the second half in random order
             for(auto const index : free_order_second_half) {
+                // ::printf("  free %zu: %zu bytes\n", index, alloc_sizes[index]);
                 heap.free(allocs[index]);
             }
         }
     );
+//*/
 }

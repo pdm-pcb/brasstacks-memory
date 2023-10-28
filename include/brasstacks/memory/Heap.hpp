@@ -2,6 +2,7 @@
 #define BRASSTACKS_MEMORY_HEAP_HPP
 
 #include <cstddef>
+#include <cstdint>
 
 namespace btx::memory {
 
@@ -18,7 +19,7 @@ public:
     [[nodiscard]] std::size_t peak_used()      const { return _peak_used;      }
     [[nodiscard]] std::size_t peak_allocs()    const { return _peak_allocs;    }
 
-    [[nodiscard]] char * raw_heap() { return _raw_heap; }
+    [[nodiscard]] uint8_t * raw_heap() { return _raw_heap; }
 
     [[nodiscard]] float calc_fragmentation() const;
 
@@ -34,7 +35,7 @@ public:
     Heap & operator=(Heap const &) = delete;
 
 private:
-    char        *_raw_heap;
+    uint8_t     *_raw_heap;
     BlockHeader *_free_head;
 
     std::size_t _total_size;
@@ -43,7 +44,8 @@ private:
     std::size_t _peak_used;
     std::size_t _peak_allocs;
 
-    void _split_free_block(BlockHeader *block, std::size_t const bytes);
+    void _split_free_block(BlockHeader *header, std::size_t const bytes);
+    void _use_whole_free_block(BlockHeader *header);
     void _coalesce(BlockHeader *header);
 };
 

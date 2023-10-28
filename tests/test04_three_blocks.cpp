@@ -39,10 +39,10 @@ TEST_CASE("Allocate and free three blocks, free a->b->c") {
     REQUIRE(alloc_c == BlockHeader::payload(header_c));
 
     // Check the physical locations in memory
-    char *raw_heap = heap.raw_heap();
-    REQUIRE(reinterpret_cast<char *>(header_a) == raw_heap);
-    REQUIRE(reinterpret_cast<char *>(header_b) == raw_heap + 96);
-    REQUIRE(reinterpret_cast<char *>(header_c) == raw_heap + 224);
+    uint8_t *raw_heap = heap.raw_heap();
+    REQUIRE(reinterpret_cast<uint8_t *>(header_a) == raw_heap);
+    REQUIRE(reinterpret_cast<uint8_t *>(header_b) == raw_heap + 96);
+    REQUIRE(reinterpret_cast<uint8_t *>(header_c) == raw_heap + 224);
 
     // And the free block is 96 bytes in size, given a 32 byte BlockHeader
     auto *free_header = reinterpret_cast<BlockHeader *>(raw_heap + 384);
@@ -65,6 +65,13 @@ TEST_CASE("Allocate and free three blocks, free a->b->c") {
     // header_a has become the "true" free_header, which means the next pointer
     // directs us to the free chunk at the end of the heap
     REQUIRE(header_a->next == free_header);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == header_a);
 
     // header_a, while now free, has the same size as it did before
     REQUIRE(header_a->size == 64);
@@ -84,7 +91,15 @@ TEST_CASE("Allocate and free three blocks, free a->b->c") {
     REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs((1.0f/3.0f), epsilon));
 
     // header_a->next still  points to the free block at the end of the heap
+    // since it just absorbed alloc_b
     REQUIRE(header_a->next == free_header);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == header_a);
 
     // But the size has grown by size_b and sizeof(BlockHeader)
     REQUIRE(header_a->size == 192);
@@ -106,12 +121,19 @@ TEST_CASE("Allocate and free three blocks, free a->b->c") {
     // There's no more free block at the end of the heap, so header_a->next
     // points nowhere
     REQUIRE(header_a->next == nullptr);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == nullptr);
 
     // And the size of header_a should be the whole available heap
     REQUIRE(header_a->size == 480);
 }
 
-TEST_CASE("Allocate and free three blocks, free c->b->a") {
+TEST_CASE("Allocate and free three blocks, free a->c->b") {
     std::size_t const heap_size = 512;
     Heap heap(heap_size);
 
@@ -127,49 +149,62 @@ TEST_CASE("Allocate and free three blocks, free c->b->a") {
     BlockHeader *header_b = BlockHeader::header(alloc_b);
     BlockHeader *header_c = BlockHeader::header(alloc_c);
 
+    auto *free_header = reinterpret_cast<BlockHeader *>(heap.raw_heap() + 384);
+
     //--------------------------------------------------------------------------
     // Free the first block
-    heap.free(alloc_c);
+    heap.free(alloc_a);
 
-    // The free block at the end of the heap and alloc_c will have merged
-    REQUIRE(heap.current_used() == 256);
+    // The internal metrics will largely be the same, except with size_a fewer
+    // used bytes and one fewer allocs
+    REQUIRE(heap.current_used() == 352);
     REQUIRE(heap.current_allocs() == 2);
     REQUIRE(heap.peak_used() == 416);
     REQUIRE(heap.peak_allocs() == 3);
 
-    // Given the free blocks are coallesced, fragmentation is 0
-    REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.0f, epsilon));
+    // Given 64+96=160 bytes total free, fragmentation is ~0.4
+    REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.4f, epsilon));
 
-    // Since the original free block and alloc_c have merged, header_c->next
-    // will point nowhere
+    // header_a has become the "true" free_header, which means the next pointer
+    // directs us to the free chunk at the end of the heap
+    REQUIRE(header_a->next == free_header);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
     REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == header_a);
 
-    // header_c, serving as the "new" free_header, will have grown in size
-    REQUIRE(header_c->size == 256);
+    // header_a, while now free, has the same size as it did before
+    REQUIRE(header_a->size == 64);
 
     //--------------------------------------------------------------------------
     // Free the second block
-    heap.free(alloc_b);
+    heap.free(alloc_c);
 
-    // Again, the used bytes count decreases by sizeof(BlockHeader) and alloc_b
-    // due to the coallescing of free space
-    REQUIRE(heap.current_used() == 128);
+    // header_c and free_header have merged
+    REQUIRE(heap.current_used() == 192);
     REQUIRE(heap.current_allocs() == 1);
     REQUIRE(heap.peak_used() == 416);
     REQUIRE(heap.peak_allocs() == 3);
 
-    // Still zero fragmentation
-    REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.0f, epsilon));
-
-    // Now header_b is the "new" free_header
+    // header_a is still the top of the free list, but now it points to b
+    REQUIRE(header_a->next == header_c);
+    REQUIRE(header_a->prev == nullptr);
     REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == header_a);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == nullptr);
 
-    // header_c, serving as the "new" free_header, will have grown in size
-    REQUIRE(header_b->size == 384);
+    // 64+256=320 bytes total free, fragmentation is ~0.2
+    REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.2f, epsilon));
 
     //--------------------------------------------------------------------------
     // Free the third block
-    heap.free(alloc_a);
+    heap.free(alloc_b);
 
     // Finally, everything's free so only the 32 bytes of the heap's header are
     // used
@@ -178,12 +213,19 @@ TEST_CASE("Allocate and free three blocks, free c->b->a") {
     REQUIRE(heap.peak_used() == 416);
     REQUIRE(heap.peak_allocs() == 3);
 
-    // And certainly zero fragmentation with everything free
+    // No fragmentation
     REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.0f, epsilon));
 
     // There's no more free block at the end of the heap, so header_a->next
     // points nowhere
     REQUIRE(header_a->next == nullptr);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == nullptr);
 
     // And the size of header_a should be the whole available heap
     REQUIRE(header_a->size == 480);
@@ -203,6 +245,7 @@ TEST_CASE("Allocate and free three blocks, free b->a->c") {
 
     BlockHeader *header_a = BlockHeader::header(alloc_a);
     BlockHeader *header_b = BlockHeader::header(alloc_b);
+    BlockHeader *header_c = BlockHeader::header(alloc_c);
 
     auto *free_header = reinterpret_cast<BlockHeader *>(heap.raw_heap() + 384);
 
@@ -221,7 +264,14 @@ TEST_CASE("Allocate and free three blocks, free b->a->c") {
 
     // With header_b now technically a free header, its next pointer will
     // lead to the original free_header
+    REQUIRE(header_a->next == nullptr);
+    REQUIRE(header_a->prev == nullptr);
     REQUIRE(header_b->next == free_header);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == header_b);
 
     // Both header_b and free_header will have the same sizes as before
     REQUIRE(header_b->size == 96);
@@ -237,11 +287,18 @@ TEST_CASE("Allocate and free three blocks, free b->a->c") {
     REQUIRE(heap.peak_used() == 416);
     REQUIRE(heap.peak_allocs() == 3);
 
-    // a and be taken together gives us 192 bytes, so ~0.3 fragmentation
+    // a and b taken together gives us 192 bytes, so ~0.3 fragmentation
     REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs((1.0f/3.0f), epsilon));
 
     // header_a->next now jumps to the original free_header
     REQUIRE(header_a->next == free_header);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == header_a);
 
     // header_a->size has grown to encompass both a and b, but free_header
     // stays the same
@@ -265,6 +322,13 @@ TEST_CASE("Allocate and free three blocks, free b->a->c") {
     // There's no more free block at the end of the heap, so header_a->next
     // points nowhere
     REQUIRE(header_a->next == nullptr);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == nullptr);
 
     // And the size of header_a should be the whole available heap
     REQUIRE(header_a->size == 480);
@@ -284,6 +348,7 @@ TEST_CASE("Allocate and free three blocks, free b->c->a") {
 
     BlockHeader *header_a = BlockHeader::header(alloc_a);
     BlockHeader *header_b = BlockHeader::header(alloc_b);
+    BlockHeader *header_c = BlockHeader::header(alloc_c);
 
     auto *free_header = reinterpret_cast<BlockHeader *>(heap.raw_heap() + 384);
 
@@ -300,9 +365,14 @@ TEST_CASE("Allocate and free three blocks, free b->c->a") {
     // alloc_b is now free and is 96 bytes, so we're at ~0.5 fragmentation
     REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.5f, epsilon));
 
-    // With header_b now technically a free header, its next pointer will
+    // With header_b now technically the free header, its next pointer will
     // lead to the original free_header
+    REQUIRE(header_a->next == nullptr);
+    REQUIRE(header_a->prev == nullptr);
     REQUIRE(header_b->next == free_header);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == header_b);
 
     // Both header_b and free_header will have the same sizes as before
     REQUIRE(header_b->size == 96);
@@ -322,8 +392,15 @@ TEST_CASE("Allocate and free three blocks, free b->c->a") {
     // fragmentation
     REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.0f, epsilon));
 
-    // All the free space is already coallesced, so header_b->next is nullptr
+    // All the free space is coallesced, so header_b is the whole free list
+    REQUIRE(header_a->next == nullptr);
+    REQUIRE(header_a->prev == nullptr);
     REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == nullptr);
 
     // header_b->size has grown to encompass c and the original free_header
     REQUIRE(header_b->size == 384);
@@ -342,9 +419,213 @@ TEST_CASE("Allocate and free three blocks, free b->c->a") {
     // And again, no fragmentation when everything's free
     REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.0f, epsilon));
 
+    // Everything's free
+    REQUIRE(header_a->next == nullptr);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == nullptr);
+
+    // And the size of header_a should be the whole available heap
+    REQUIRE(header_a->size == 480);
+}
+
+TEST_CASE("Allocate and free three blocks, free c->a->b") {
+    std::size_t const heap_size = 512;
+    Heap heap(heap_size);
+
+    std::size_t const size_a = 64;
+    std::size_t const size_b = 96;
+    std::size_t const size_c = 128;
+
+    void *alloc_a = heap.alloc(size_a);
+    void *alloc_b = heap.alloc(size_b);
+    void *alloc_c = heap.alloc(size_c);
+
+    BlockHeader *header_a = BlockHeader::header(alloc_a);
+    BlockHeader *header_b = BlockHeader::header(alloc_b);
+    BlockHeader *header_c = BlockHeader::header(alloc_c);
+
+    auto *free_header = reinterpret_cast<BlockHeader *>(heap.raw_heap() + 384);
+
+    //--------------------------------------------------------------------------
+    // Free the first block
+    heap.free(alloc_c);
+
+    // The free block at the end of the heap and alloc_c will have merged
+    REQUIRE(heap.current_used() == 256);
+    REQUIRE(heap.current_allocs() == 2);
+    REQUIRE(heap.peak_used() == 416);
+    REQUIRE(heap.peak_allocs() == 3);
+
+    // Given the free blocks are coallesced, fragmentation is 0
+    REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.0f, epsilon));
+
+    // Since the original free block and alloc_c have merged, and header_c
+    // is the new free header, the pointers are cleared out
+    REQUIRE(header_a->next == nullptr);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == nullptr);
+
+    // The header_c/the free header's size has grown
+    REQUIRE(header_c->size == 256);
+
+    //--------------------------------------------------------------------------
+    // Free the second block
+    heap.free(alloc_a);
+
+    // header_a is the new free header, so we've only reclaimed 64 bytes
+    REQUIRE(heap.current_used() == 192);
+    REQUIRE(heap.current_allocs() == 1);
+    REQUIRE(heap.peak_used() == 416);
+    REQUIRE(heap.peak_allocs() == 3);
+
+    // The free list pointers skip over alloc_b
+    REQUIRE(header_a->next == header_c);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == header_a);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == nullptr);
+
+    // 64+256=320, and 256/320 = 0.8, so we've got ~20% fragmentation
+    REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.2f, epsilon));
+
+    //--------------------------------------------------------------------------
+    // Free the third block
+    heap.free(alloc_b);
+
+    // Finally, everything's free so only the 32 bytes of the heap's header are
+    // used
+    REQUIRE(heap.current_used() == 32);
+    REQUIRE(heap.current_allocs() == 0);
+    REQUIRE(heap.peak_used() == 416);
+    REQUIRE(heap.peak_allocs() == 3);
+
+    // And again, no fragmentation when everything's free
+    REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.0f, epsilon));
+
     // There's no more free block at the end of the heap, so header_a->next
     // points nowhere
     REQUIRE(header_a->next == nullptr);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == nullptr);
+
+    // And the size of header_a should be the whole available heap
+    REQUIRE(header_a->size == 480);
+}
+
+TEST_CASE("Allocate and free three blocks, free c->b->a") {
+    std::size_t const heap_size = 512;
+    Heap heap(heap_size);
+
+    std::size_t const size_a = 64;
+    std::size_t const size_b = 96;
+    std::size_t const size_c = 128;
+
+    void *alloc_a = heap.alloc(size_a);
+    void *alloc_b = heap.alloc(size_b);
+    void *alloc_c = heap.alloc(size_c);
+
+    BlockHeader *header_a = BlockHeader::header(alloc_a);
+    BlockHeader *header_b = BlockHeader::header(alloc_b);
+    BlockHeader *header_c = BlockHeader::header(alloc_c);
+
+    auto *free_header = reinterpret_cast<BlockHeader *>(heap.raw_heap() + 384);
+
+    //--------------------------------------------------------------------------
+    // Free the first block
+    heap.free(alloc_c);
+
+    // The free block at the end of the heap and alloc_c will have merged
+    REQUIRE(heap.current_used() == 256);
+    REQUIRE(heap.current_allocs() == 2);
+    REQUIRE(heap.peak_used() == 416);
+    REQUIRE(heap.peak_allocs() == 3);
+
+    // Given the free blocks are coallesced, fragmentation is 0
+    REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.0f, epsilon));
+
+    // Since the original free block and alloc_c have merged, and header_c
+    // is the new free header, the pointers are cleared out
+    REQUIRE(header_a->next == nullptr);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == nullptr);
+
+    // The header_c/the free header's size has grown
+    REQUIRE(header_c->size == 256);
+
+    //--------------------------------------------------------------------------
+    // Free the second block
+    heap.free(alloc_b);
+
+    // Again, the used bytes count decreases by sizeof(BlockHeader) and alloc_b
+    // due to the coallescing of free space
+    REQUIRE(heap.current_used() == 128);
+    REQUIRE(heap.current_allocs() == 1);
+    REQUIRE(heap.peak_used() == 416);
+    REQUIRE(heap.peak_allocs() == 3);
+
+    // Still zero fragmentation
+    REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.0f, epsilon));
+
+    // Now header_b is the "new" free_header
+    REQUIRE(header_a->next == nullptr);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == nullptr);
+
+    // header_c, serving as the "new" free_header, will have grown in size
+    REQUIRE(header_b->size == 384);
+
+    //--------------------------------------------------------------------------
+    // Free the third block
+    heap.free(alloc_a);
+
+    // Finally, everything's free so only the 32 bytes of the heap's header are
+    // used
+    REQUIRE(heap.current_used() == 32);
+    REQUIRE(heap.current_allocs() == 0);
+    REQUIRE(heap.peak_used() == 416);
+    REQUIRE(heap.peak_allocs() == 3);
+
+    // And certainly zero fragmentation with everything free
+    REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.0f, epsilon));
+
+    // There's no more free block at the end of the heap, so header_a->next
+    // points nowhere
+    REQUIRE(header_a->next == nullptr);
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(header_c->next == nullptr);
+    REQUIRE(header_c->prev == nullptr);
+    REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == nullptr);
 
     // And the size of header_a should be the whole available heap
     REQUIRE(header_a->size == 480);

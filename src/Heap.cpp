@@ -37,52 +37,38 @@ void * Heap::alloc(std::size_t const bytes) {
         return nullptr;
     }
 
+    int32_t constexpr ALIGN = sizeof(void *);
+    std::size_t const rounded_bytes = (bytes + ALIGN - 1) & -ALIGN;
+
     // Find a free block with sufficient space available
-    auto *current_block = _free_head;
-    while(current_block != nullptr) {
-        if(current_block->size >= bytes) {
+    auto *current_header = _free_head;
+    while(current_header != nullptr) {
+        // The most likely case that'll fit is the block we've found is bigger
+        // than what we're asking for, so we need to split it. This implies
+        // the creation of a new header for the allocated chunk
+        if(current_header->size >= rounded_bytes + sizeof(BlockHeader)) {
+            _split_free_block(current_header, rounded_bytes);
             break;
         }
-        current_block = current_block->next;
+
+        // Much less likely, but still possible, is finding a block that fits
+        // the request exactly, in which case we just need to fix the pointers
+        if(current_header->size == rounded_bytes) {
+            _use_whole_free_block(current_header);
+            break;
+        }
+        current_header = current_header->next;
     }
 
     // We couldn't find a block of sufficient size, so the allocation has
     // failed and the user will need to handle it how they see fit
-    if(current_block == nullptr) {
+    if(current_header == nullptr) {
         assert(false && "Failed to allocate block");
         return nullptr;
     }
 
-    // In the likely event that the block we're allocating from is larger
-    // than the requested size, we'll need to split the block and adjust the
-    // free list accordingly
-    if(current_block->size > bytes) {
-        _split_free_block(current_block, bytes);
-    }
-    else {
-        // Otherwise we've got a perfect fit, so all that needs doing is
-        // removing the new allocation from the free list
-        if(current_block->next != nullptr) {
-            current_block->next->prev = current_block->prev;
-        }
-
-        if(current_block->prev != nullptr) {
-            current_block->prev->next = current_block->next;
-        }
-
-        // Finally, adjust _free_head if need be
-        if(current_block == _free_head) {
-            _free_head = _free_head->next;
-        }
-    }
-
-    // The allocation is no longer a part of the free list, so remove its
-    // pointer association just for tidiness
-    current_block->next = nullptr;
-    current_block->prev = nullptr;
-
     // Update the heap's metrics
-    _current_used += bytes;
+    _current_used += rounded_bytes;
     _current_allocs += 1;
 
     if(_current_used > _peak_used) {
@@ -94,7 +80,7 @@ void * Heap::alloc(std::size_t const bytes) {
     }
 
     // And hand the bytes requested back to the user
-    return BlockHeader::payload(current_block);
+    return BlockHeader::payload(current_header);
 }
 
 // =============================================================================
@@ -158,12 +144,21 @@ void Heap::free(void *address) {
 // =============================================================================
 Heap::Heap(std::size_t const bytes) :
     _total_size     { bytes },
-    _raw_heap       { reinterpret_cast<char *>(::malloc(bytes)) },
+    _raw_heap       { nullptr },
     _current_used   { sizeof(BlockHeader) },
     _current_allocs { 0 },
     _peak_used      { sizeof(BlockHeader) },
     _peak_allocs    { 0 }
 {
+    assert(bytes > 0 && "Cannot allocate zero sized heap");
+
+    // So long as BlockHeader's size is a power of two, this rounding to a
+    // multiple math is safe
+    int32_t constexpr ALIGN = sizeof(BlockHeader) * 2;
+    std::size_t const rounded_bytes = (bytes + ALIGN - 1) & -ALIGN;
+
+    _raw_heap = reinterpret_cast<uint8_t *>(::malloc(rounded_bytes));
+
     assert(_raw_heap != nullptr && "Heap allocation failed");
 
     _free_head = reinterpret_cast<BlockHeader *>(_raw_heap);
@@ -178,10 +173,10 @@ Heap::~Heap() {
 }
 
 // =============================================================================
-void Heap::_split_free_block(BlockHeader *block, std::size_t const bytes) {
+void Heap::_split_free_block(BlockHeader *header, std::size_t const bytes) {
     // Reinterpret the space just beyond what's requested as a new free block
-    auto *new_free_block = reinterpret_cast<BlockHeader *>(
-        reinterpret_cast<char *>(block)
+    auto *new_free_header = reinterpret_cast<BlockHeader *>(
+        reinterpret_cast<uint8_t *>(header)
         + sizeof(BlockHeader)
         + bytes
     );
@@ -190,27 +185,48 @@ void Heap::_split_free_block(BlockHeader *block, std::size_t const bytes) {
     _current_used += sizeof(BlockHeader);
 
     // The new block's size is set to what's left of the original block
-    new_free_block->size = block->size - sizeof(BlockHeader) - bytes;
+    new_free_header->size = header->size - sizeof(BlockHeader) - bytes;
 
     // And the allocation we'll return is shrunk proportionately
-    block->size -= new_free_block->size + sizeof(BlockHeader);
+    header->size -= new_free_header->size + sizeof(BlockHeader);
 
     // Fix up the linked list, removing the allocation from the free list
-    new_free_block->next = block->next;
-    new_free_block->prev = block->prev;
+    new_free_header->next = header->next;
+    new_free_header->prev = header->prev;
 
-    if(new_free_block->next != nullptr) {
-        new_free_block->next->prev = new_free_block;
+    header->next = nullptr;
+    header->prev = nullptr;
+
+    if(new_free_header->next != nullptr) {
+        new_free_header->next->prev = new_free_header;
     }
 
-    if(new_free_block->prev != nullptr) {
-        new_free_block->prev->next = new_free_block;
+    if(new_free_header->prev != nullptr) {
+        new_free_header->prev->next = new_free_header;
     }
 
     // Finally, adjust _free_head if need be
-    if(block == _free_head) {
-        _free_head = new_free_block;
+    if(header == _free_head) {
+        _free_head = new_free_header;
     }
+}
+
+// =============================================================================
+void Heap::_use_whole_free_block(BlockHeader *header) {
+    if(header->next != nullptr) {
+        header->next->prev = header->prev;
+    }
+
+    if(header->prev != nullptr) {
+        header->prev->next = header->next;
+    }
+
+    if(header == _free_head) {
+        _free_head = _free_head->next;
+    }
+
+    header->next = nullptr;
+    header->prev = nullptr;
 }
 
 // =============================================================================
@@ -220,7 +236,7 @@ void Heap::_coalesce(BlockHeader *header) {
         // If the current block's payload plus its own size is the same
         // location as header->next, that means the blocks are contiguous
         auto *next_header_from_offset = reinterpret_cast<BlockHeader *>(
-            reinterpret_cast<char *>(BlockHeader::payload(header))
+            reinterpret_cast<uint8_t *>(BlockHeader::payload(header))
             + header->size
         );
 
@@ -231,6 +247,11 @@ void Heap::_coalesce(BlockHeader *header) {
 
             // Fix the pointers
             header->next = next_header->next;
+
+            if(header->next != nullptr) {
+                header->next->prev = header;
+            }
+
             next_header->next = nullptr;
             next_header->prev = nullptr;
 
@@ -243,7 +264,7 @@ void Heap::_coalesce(BlockHeader *header) {
         // This is the same strategy as above, but measuring forward from
         // header->prev
         auto *prev_header_from_offset = reinterpret_cast<BlockHeader *>(
-            reinterpret_cast<char *>(BlockHeader::payload(header->prev))
+            reinterpret_cast<uint8_t *>(BlockHeader::payload(header->prev))
             + header->prev->size
         );
 
@@ -254,6 +275,11 @@ void Heap::_coalesce(BlockHeader *header) {
 
             // Fix the pointers
             prev_header->next = header->next;
+
+            if(header->next != nullptr) {
+                header->next->prev = header->prev;
+            }
+
             header->next = nullptr;
             header->prev = nullptr;
 

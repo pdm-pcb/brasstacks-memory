@@ -38,11 +38,11 @@ TEST_CASE("Allocate and free two blocks, free a->b") {
     REQUIRE(header_b->next == nullptr);
 
     // The first header is at the very beginning of the heap
-    char *raw_heap = heap.raw_heap();
-    REQUIRE(reinterpret_cast<char *>(header_a) == raw_heap);
+    uint8_t *raw_heap = heap.raw_heap();
+    REQUIRE(reinterpret_cast<uint8_t *>(header_a) == raw_heap);
 
     // The second header is at +96 bytes
-    REQUIRE(reinterpret_cast<char *>(header_b) ==
+    REQUIRE(reinterpret_cast<uint8_t *>(header_b) ==
         raw_heap + sizeof(BlockHeader) + size_a
     );
 
@@ -125,11 +125,11 @@ TEST_CASE("Allocate and free two blocks, free b->a") {
     REQUIRE(header_b->next == nullptr);
 
     // The first header is at the very beginning of the heap
-    char *raw_heap = heap.raw_heap();
-    REQUIRE(reinterpret_cast<char *>(header_a) == raw_heap);
+    uint8_t *raw_heap = heap.raw_heap();
+    REQUIRE(reinterpret_cast<uint8_t *>(header_a) == raw_heap);
 
     // The second header is at +96 bytes
-    REQUIRE(reinterpret_cast<char *>(header_b) ==
+    REQUIRE(reinterpret_cast<uint8_t *>(header_b) ==
         raw_heap
         + sizeof(BlockHeader)
         + size_a

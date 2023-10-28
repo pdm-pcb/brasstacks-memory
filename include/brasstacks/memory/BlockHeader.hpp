@@ -2,6 +2,7 @@
 #define BRASSTACKS_MEMORY_BLOCKHEADER_HPP
 
 #include <cstddef>
+#include <cstdint>
 
 namespace btx::memory {
 
@@ -9,12 +10,12 @@ struct alignas(16) BlockHeader final {
     // Convenience functions for common casting and pointer math
     [[nodiscard]] static inline BlockHeader * header(void *address) {
         return reinterpret_cast<BlockHeader *>(
-            reinterpret_cast<char *>(address) - sizeof(BlockHeader)
+            reinterpret_cast<uint8_t *>(address) - sizeof(BlockHeader)
         );
     }
 
     [[nodiscard]] static inline void * payload(BlockHeader *header) {
-        return reinterpret_cast<char *>(header) + sizeof(BlockHeader);
+        return reinterpret_cast<uint8_t *>(header) + sizeof(BlockHeader);
     }
 
     // No constructors because BlockHeader is intended to be used as a means by
