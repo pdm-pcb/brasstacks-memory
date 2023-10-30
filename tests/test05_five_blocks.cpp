@@ -53,15 +53,15 @@ TEST_CASE("Allocate five blocks, free a and c, then allocate a block that's "
     REQUIRE(alloc_e == BlockHeader::payload(header_e));
 
     // Check the physical locations in memory
-    uint8_t *raw_heap = heap.raw_heap();
+    auto const *raw_heap = heap.raw_heap();
     REQUIRE(reinterpret_cast<uint8_t *>(header_a) == raw_heap);
     REQUIRE(reinterpret_cast<uint8_t *>(header_b) == raw_heap + 96);
     REQUIRE(reinterpret_cast<uint8_t *>(header_c) == raw_heap + 224);
     REQUIRE(reinterpret_cast<uint8_t *>(header_d) == raw_heap + 384);
     REQUIRE(reinterpret_cast<uint8_t *>(header_e) == raw_heap + 672);
 
-    // And the free block is 384 bytes in size, given a 32 byte BlockHeader
-    auto *free_header = reinterpret_cast<BlockHeader *>(raw_heap + 1216);
+    // And the free block is 2848 bytes in size, given a 32 byte BlockHeader
+    auto const *free_header = heap.free_head();
     REQUIRE(free_header->size == 2848);
 
     // //--------------------------------------------------------------------------

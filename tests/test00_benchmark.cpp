@@ -73,7 +73,7 @@ TEST_CASE("Benchmarking") {
     auto bench = ankerl::nanobench::Bench()
         .minEpochIterations(min_epoch_count)
         .relative(true);
-//*
+/*
     // Test plain malloc() and free()
     bench.run(
         "libstdc malloc and free benchmark", [&] {

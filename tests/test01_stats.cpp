@@ -18,8 +18,8 @@ TEST_CASE("Heap creation and initial state metrics") {
     REQUIRE_THAT(heap.calc_fragmentation(), WithinAbs(0.0f, epsilon));
 
     // Next check the heap's structure
-    uint8_t *raw_heap = heap.raw_heap();
-    auto *free_header = reinterpret_cast<BlockHeader *>(raw_heap);
+    auto const *raw_heap = heap.raw_heap();
+    auto const *free_header = reinterpret_cast<BlockHeader const *>(raw_heap);
 
     REQUIRE(free_header->size == heap_size - sizeof(BlockHeader));
     REQUIRE(free_header->prev == nullptr);

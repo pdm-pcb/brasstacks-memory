@@ -18,7 +18,7 @@ TEST_CASE("Allocate and free two blocks, free a->b") {
     void *alloc_b = heap.alloc(size_b);
 
     // Check the heap's internal metrics
-    REQUIRE(heap.current_used() == 3 * sizeof(BlockHeader) + size_a + size_b);
+    REQUIRE(heap.current_used() == 256);
     REQUIRE(heap.current_allocs() == 2);
     REQUIRE(heap.peak_used() == heap.current_used());
     REQUIRE(heap.peak_allocs() == heap.current_allocs());
@@ -30,15 +30,20 @@ TEST_CASE("Allocate and free two blocks, free a->b") {
     REQUIRE(alloc_a == BlockHeader::payload(header_a));
 
     BlockHeader *header_b = BlockHeader::header(alloc_b);
-    REQUIRE(header_b->size == size_b);
+    // alloc_b will have absorbed the zero-byte free block below it, meaning
+    // alloc_b is 32 bytes larger than the requested size
+    REQUIRE(header_b->size == size_b + 2 * sizeof(BlockHeader));
     REQUIRE(alloc_b == BlockHeader::payload(header_b));
 
-    // Both headers' next pointer should be null
+    // Both headers' pointers should be null
     REQUIRE(header_a->next == nullptr);
+    REQUIRE(header_a->prev == nullptr);
     REQUIRE(header_b->next == nullptr);
+    REQUIRE(header_b->prev == nullptr);
+    REQUIRE(heap.free_head() == nullptr);
 
     // The first header is at the very beginning of the heap
-    uint8_t *raw_heap = heap.raw_heap();
+    uint8_t const *raw_heap = heap.raw_heap();
     REQUIRE(reinterpret_cast<uint8_t *>(header_a) == raw_heap);
 
     // The second header is at +96 bytes
@@ -46,36 +51,26 @@ TEST_CASE("Allocate and free two blocks, free a->b") {
         raw_heap + sizeof(BlockHeader) + size_a
     );
 
-    // The free block header is at +224 bytes
-    auto *free_header = reinterpret_cast<BlockHeader *>(
-        raw_heap + 2 * sizeof(BlockHeader) + size_a + size_b
-    );
-
-    // And the free block is 0 bytes in size, given a 32 byte BlockHeader
-    REQUIRE(free_header->size ==
-        heap_size - (3 * sizeof(BlockHeader) + size_a + size_b)
-    );
-
-    // free_header->next should point nowhere
-    REQUIRE(free_header->next == nullptr);
+    // Since 32+64+32+96=224, the free head will have a size of zero, so should
+    // be set to nullptr
+    REQUIRE(heap.free_head() == nullptr);
 
     // Now free the first block
     heap.free(alloc_a);
 
     // Check the heap stats
-    REQUIRE(heap.current_used() == size_b + 3 * sizeof(BlockHeader));
+    REQUIRE(heap.current_used() == 192);
     REQUIRE(heap.current_allocs() == 1);
-    REQUIRE(heap.peak_used() == 3 * sizeof(BlockHeader) + size_a + size_b);
+    REQUIRE(heap.peak_used() == 256);
     REQUIRE(heap.peak_allocs() == 2);
 
-    // At this point, we've got a free block of 64 behind header_b and what
-    // was previously called free_header is the second free block in the list
-    REQUIRE(header_a->next == free_header);
-    REQUIRE(free_header->prev == header_a);
+    // Given that header_a is now free, it should be the new head of the free
+    // list. Its size is unchanged and its pointers are null because it's the
+    // only member of the list
+    REQUIRE(heap.free_head() == header_a);
     REQUIRE(header_a->size == size_a);
-    REQUIRE(free_header->size == heap_size - (3 * sizeof(BlockHeader)
-                                              + size_a
-                                              + size_b));
+    REQUIRE(header_a->prev == nullptr);
+    REQUIRE(header_a->prev == nullptr);
 
     // Free the second block
     heap.free(alloc_b);
@@ -83,7 +78,7 @@ TEST_CASE("Allocate and free two blocks, free a->b") {
     // Check the heap stats
     REQUIRE(heap.current_used() == sizeof(BlockHeader));
     REQUIRE(heap.current_allocs() == 0);
-    REQUIRE(heap.peak_used() == 3 * sizeof(BlockHeader) + size_a + size_b);
+    REQUIRE(heap.peak_used() == 256);
     REQUIRE(heap.peak_allocs() == 2);
 
     // Given that the second block was between the first and free blocks, the
@@ -125,7 +120,7 @@ TEST_CASE("Allocate and free two blocks, free b->a") {
     REQUIRE(header_b->next == nullptr);
 
     // The first header is at the very beginning of the heap
-    uint8_t *raw_heap = heap.raw_heap();
+    uint8_t const *raw_heap = heap.raw_heap();
     REQUIRE(reinterpret_cast<uint8_t *>(header_a) == raw_heap);
 
     // The second header is at +96 bytes
@@ -136,7 +131,7 @@ TEST_CASE("Allocate and free two blocks, free b->a") {
     );
 
     // The free block header is at +224 bytes
-    auto *free_header = reinterpret_cast<BlockHeader *>(
+    auto *free_header = reinterpret_cast<BlockHeader const *>(
         raw_heap + 2 * sizeof(BlockHeader) + size_a + size_b
     );
 

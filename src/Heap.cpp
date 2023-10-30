@@ -1,5 +1,4 @@
 #include "brasstacks/memory/Heap.hpp"
-#include "brasstacks/memory/BlockHeader.hpp"
 
 #include <cassert>
 #include <cstdlib>
@@ -38,16 +37,28 @@ void * Heap::alloc(std::size_t const bytes) {
     }
 
     int32_t constexpr ALIGN = sizeof(void *);
-    std::size_t const rounded_bytes = (bytes + ALIGN - 1) & -ALIGN;
+    std::size_t rounded_bytes = (bytes + ALIGN - 1) & -ALIGN;
+
+    if(rounded_bytes < _min_alloc_bytes) {
+        rounded_bytes = _min_alloc_bytes;
+    }
 
     // Find a free block with sufficient space available
     auto *current_header = _free_head;
     while(current_header != nullptr) {
+        std::size_t const size_of_new_block = rounded_bytes + sizeof(BlockHeader);
         // The most likely case that'll fit is the block we've found is bigger
-        // than what we're asking for, so we need to split it. This implies
-        // the creation of a new header for the allocated chunk
-        if(current_header->size >= rounded_bytes + sizeof(BlockHeader)) {
-            _split_free_block(current_header, rounded_bytes);
+        // than what we've asked for, so we need to split it. This implies
+        // the creation of a new header for the new allocation as well
+        if(current_header->size >= size_of_new_block) {
+            // If splitting the block would result in less than 32 bytes of
+            // free space, just use the whole thing
+            if(current_header->size - size_of_new_block < _min_alloc_bytes) {
+                _use_whole_free_block(current_header);
+            }
+            else {
+                _split_free_block(current_header, rounded_bytes);
+            }
             break;
         }
 
@@ -57,6 +68,8 @@ void * Heap::alloc(std::size_t const bytes) {
             _use_whole_free_block(current_header);
             break;
         }
+
+        // Carry on looking for a suitable block
         current_header = current_header->next;
     }
 
@@ -68,7 +81,7 @@ void * Heap::alloc(std::size_t const bytes) {
     }
 
     // Update the heap's metrics
-    _current_used += rounded_bytes;
+    _current_used += current_header->size;
     _current_allocs += 1;
 
     if(_current_used > _peak_used) {
@@ -85,60 +98,60 @@ void * Heap::alloc(std::size_t const bytes) {
 
 // =============================================================================
 void Heap::free(void *address) {
-    assert(address != nullptr && "Cannot free nullptr");
-
     if(address == nullptr) {
         assert(false && "Attempting to free memory twice");
         return;
     }
 
     // Grab the associated header from the user's pointer
-    BlockHeader *block_to_free = BlockHeader::header(address);
+    BlockHeader *header_to_free = BlockHeader::header(address);
 
     // Update heap stats
-    _current_used -= block_to_free->size;
+    _current_used -= header_to_free->size;
     _current_allocs -= 1;
 
     // If the free list is empty, then this block will serve as the new head
     if(_free_head == nullptr) {
-        _free_head = block_to_free;
+        _free_head = header_to_free;
     }
-    else if(block_to_free < _free_head) {
+    else if(header_to_free < _free_head) {
         // If the newly freed block has a earlier memory address than the free
         // list's current head, the freed block becomes the new head
-        block_to_free->next = _free_head;
-        block_to_free->prev = nullptr;
-        _free_head->prev = block_to_free;
+        header_to_free->next = _free_head;
+        header_to_free->prev = nullptr;
+        _free_head->prev = header_to_free;
 
-        _free_head = block_to_free;
+        _free_head = header_to_free;
     }
     else {
         // Otherwise the newly freed block will land somewhere after the head.
         // Walk the list to find a block to insert the newly free block after,
         // and break if current_block is the last free block in the list.
-        auto *current_block = _free_head;
-        while(block_to_free < current_block) {
-            if(current_block->next == nullptr) {
+        auto *current_header = _free_head;
+        while(header_to_free < current_header) {
+            if(current_header->next == nullptr) {
                 break;
             }
 
-            current_block = current_block->next;
+            current_header = current_header->next;
         }
 
         // Fix the list pointers
-        block_to_free->next = current_block->next;
-        block_to_free->prev = current_block;
+        header_to_free->next = current_header->next;
+        header_to_free->prev = current_header;
 
-        if(block_to_free->next != nullptr) {
-            block_to_free->next->prev = block_to_free;
+        if(header_to_free->next != nullptr) {
+            header_to_free->next->prev = header_to_free;
         }
 
-        if(block_to_free->prev != nullptr) {
-            block_to_free->prev->next = block_to_free;
+        if(header_to_free->prev != nullptr) {
+            header_to_free->prev->next = header_to_free;
         }
     }
 
-    _coalesce(block_to_free);
+    _coalesce(header_to_free);
+
+    address = nullptr;
 }
 
 // =============================================================================

@@ -1,6 +1,8 @@
 #ifndef BRASSTACKS_MEMORY_HEAP_HPP
 #define BRASSTACKS_MEMORY_HEAP_HPP
 
+#include "brasstacks/memory/BlockHeader.hpp"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -19,7 +21,8 @@ public:
     [[nodiscard]] std::size_t peak_used()      const { return _peak_used;      }
     [[nodiscard]] std::size_t peak_allocs()    const { return _peak_allocs;    }
 
-    [[nodiscard]] uint8_t * raw_heap() { return _raw_heap; }
+    [[nodiscard]] uint8_t     const * raw_heap()  const { return _raw_heap; }
+    [[nodiscard]] BlockHeader const * free_head() const { return _free_head; }
 
     [[nodiscard]] float calc_fragmentation() const;
 
@@ -43,6 +46,8 @@ private:
     std::size_t _current_allocs;
     std::size_t _peak_used;
     std::size_t _peak_allocs;
+
+    static std::size_t constexpr _min_alloc_bytes = sizeof(BlockHeader);
 
     void _split_free_block(BlockHeader *header, std::size_t const bytes);
     void _use_whole_free_block(BlockHeader *header);
