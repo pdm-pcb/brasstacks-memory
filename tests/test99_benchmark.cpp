@@ -14,7 +14,7 @@ constexpr std::size_t alloc_count = 1000;
 constexpr std::size_t min_alloc_size = 1 << 4;
 constexpr std::size_t max_alloc_size = 1 << 8;
 
-TEST_CASE("Benchmarking") {
+TEST_CASE("Benchmarking""[!benchmark]") {
     // The first thing we need is a good ol' RNG on which to base our ranges
     std::random_device dev;
     std::default_random_engine rng(dev());
