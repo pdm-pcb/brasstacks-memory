@@ -30,23 +30,25 @@ float Heap::calc_fragmentation() const {
 }
 
 // =============================================================================
-void * Heap::alloc(std::size_t const bytes) {
-    if(bytes <= 0) {
+void * Heap::alloc(std::size_t const req_bytes) {
+    if(req_bytes <= 0) {
         assert(false && "Cannot allocate zero or fewer bytes");
         return nullptr;
     }
 
-    int32_t constexpr ALIGN = sizeof(void *);
-    std::size_t rounded_bytes = (bytes + ALIGN - 1) & -ALIGN;
+    std::size_t bytes = req_bytes;
 
-    if(rounded_bytes < _min_alloc_bytes) {
-        rounded_bytes = _min_alloc_bytes;
+    if(bytes < _min_alloc_bytes) {
+        bytes = _min_alloc_bytes;
     }
+
+    int32_t constexpr ALIGN = sizeof(void *);
+    bytes = (bytes + ALIGN - 1) & -ALIGN;
 
     // Find a free block with sufficient space available
     auto *current_header = _free_head;
     while(current_header != nullptr) {
-        std::size_t const size_of_new_block = rounded_bytes + sizeof(BlockHeader);
+        std::size_t const size_of_new_block = bytes + sizeof(BlockHeader);
         // The most likely case that'll fit is the block we've found is bigger
         // than what we've asked for, so we need to split it. This implies
         // the creation of a new header for the new allocation as well
@@ -57,14 +59,14 @@ void * Heap::alloc(std::size_t const bytes) {
                 _use_whole_free_block(current_header);
             }
             else {
-                _split_free_block(current_header, rounded_bytes);
+                _split_free_block(current_header, bytes);
             }
             break;
         }
 
         // Much less likely, but still possible, is finding a block that fits
         // the request exactly, in which case we just need to fix the pointers
-        if(current_header->size == rounded_bytes) {
+        if(current_header->size == bytes) {
             _use_whole_free_block(current_header);
             break;
         }
@@ -155,22 +157,22 @@ void Heap::free(void *address) {
 }
 
 // =============================================================================
-Heap::Heap(std::size_t const bytes) :
-    _total_size     { bytes },
+Heap::Heap(std::size_t const req_bytes) :
+    _total_size     { req_bytes },
     _raw_heap       { nullptr },
     _current_used   { sizeof(BlockHeader) },
     _current_allocs { 0 },
     _peak_used      { sizeof(BlockHeader) },
     _peak_allocs    { 0 }
 {
-    assert(bytes > 0 && "Cannot allocate zero sized heap");
+    assert(req_bytes > 0 && "Cannot allocate zero sized heap");
 
     // So long as BlockHeader's size is a power of two, this rounding to a
     // multiple math is safe
     int32_t constexpr ALIGN = sizeof(BlockHeader) * 2;
-    std::size_t const rounded_bytes = (bytes + ALIGN - 1) & -ALIGN;
+    std::size_t const bytes = (req_bytes + ALIGN - 1) & -ALIGN;
 
-    _raw_heap = reinterpret_cast<uint8_t *>(::malloc(rounded_bytes));
+    _raw_heap = reinterpret_cast<uint8_t *>(::malloc(bytes));
 
     assert(_raw_heap != nullptr && "Heap allocation failed");
 

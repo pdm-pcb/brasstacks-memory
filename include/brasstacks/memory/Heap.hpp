@@ -12,7 +12,7 @@ struct BlockHeader;
 
 class Heap final {
 public:
-    [[nodiscard]] void * alloc(std::size_t const bytes);
+    [[nodiscard]] void * alloc(std::size_t const req_bytes);
     void free(void *address);
 
     [[nodiscard]] std::size_t total_size()     const { return _total_size;     }
@@ -29,7 +29,7 @@ public:
     Heap() = delete;
     ~Heap();
 
-    explicit Heap(std::size_t const bytes);
+    explicit Heap(std::size_t const req_bytes);
 
     Heap(Heap &&other) = delete;
     Heap(Heap const &) = delete;
