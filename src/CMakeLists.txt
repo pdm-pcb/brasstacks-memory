@@ -73,6 +73,7 @@ elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
             "/nologo"  # Suppress copyright message
             "/W4"	   # Warnin's
             "/wd4312"  # Disable the warning for casting to a larger size
+            "/wd4324"  # Disable the warning for padding due to alignas
         )
 
         if(CMAKE_BUILD_TYPE MATCHES "Debug")

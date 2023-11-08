@@ -158,21 +158,25 @@ void Heap::free(void *address) {
 
 // =============================================================================
 Heap::Heap(std::size_t const req_bytes) :
-    _total_size     { req_bytes },
     _raw_heap       { nullptr },
     _current_used   { sizeof(BlockHeader) },
     _current_allocs { 0 },
     _peak_used      { sizeof(BlockHeader) },
     _peak_allocs    { 0 }
 {
-    assert(req_bytes > 0 && "Cannot allocate zero sized heap");
+    if(req_bytes <= 0) {
+        assert(false && "Cannot allocate zero sized heap");
+        return;
+    }
 
     // So long as BlockHeader's size is a power of two, this rounding to a
     // multiple math is safe
     int32_t constexpr ALIGN = sizeof(BlockHeader) * 2;
     std::size_t const bytes = (req_bytes + ALIGN - 1) & -ALIGN;
 
-    _raw_heap = reinterpret_cast<uint8_t *>(::malloc(bytes));
+    _total_size = bytes;
+
+    _raw_heap = reinterpret_cast<uint8_t *>(::malloc(_total_size));
 
     assert(_raw_heap != nullptr && "Heap allocation failed");
 
@@ -246,10 +250,10 @@ void Heap::_use_whole_free_block(BlockHeader *header) {
 
 // =============================================================================
 void Heap::_coalesce(BlockHeader *header) {
-
     if(header->next != nullptr) {
         // If the current block's payload plus its own size is the same
-        // location as header->next, that means the blocks are contiguous
+        // location as header->next, that means the blocks are contiguous and
+        // can be merged
         auto *next_header_from_offset = reinterpret_cast<BlockHeader *>(
             reinterpret_cast<uint8_t *>(BlockHeader::payload(header))
             + header->size
