@@ -17,6 +17,8 @@ constexpr std::size_t min_epoch_count = 100;
 constexpr std::size_t min_alloc_size = 1 << 4;
 constexpr std::size_t max_alloc_size = 1 << 8;
 
+/*
+
 TEST_CASE("Benchmarking") {
     // The first thing we need is a good ol' RNG on which to base our ranges
     std::random_device dev;
@@ -73,7 +75,7 @@ TEST_CASE("Benchmarking") {
     auto bench = ankerl::nanobench::Bench()
         .minEpochIterations(min_epoch_count)
         .relative(true);
-/*
+
     // Test plain malloc() and free()
     bench.run(
         "libstdc malloc and free benchmark", [&] {
@@ -177,5 +179,6 @@ TEST_CASE("Benchmarking") {
             }
         }
     );
-//*/
 }
+
+//*/

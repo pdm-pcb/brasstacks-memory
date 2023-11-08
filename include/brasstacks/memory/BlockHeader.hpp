@@ -7,6 +7,7 @@
 namespace btx::memory {
 
 struct alignas(16) BlockHeader final {
+public:
     // Convenience functions for common casting and pointer math
     [[nodiscard]] static inline BlockHeader * header(void *address) {
         return reinterpret_cast<BlockHeader *>(

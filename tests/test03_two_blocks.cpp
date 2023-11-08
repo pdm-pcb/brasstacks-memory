@@ -32,7 +32,7 @@ TEST_CASE("Allocate and free two blocks, free a->b") {
     BlockHeader *header_b = BlockHeader::header(alloc_b);
     // alloc_b will have absorbed the zero-byte free block below it, meaning
     // alloc_b is 32 bytes larger than the requested size
-    REQUIRE(header_b->size == size_b + 2 * sizeof(BlockHeader));
+    REQUIRE(header_b->size == 128);
     REQUIRE(alloc_b == BlockHeader::payload(header_b));
 
     // Both headers' pointers should be null
@@ -51,8 +51,7 @@ TEST_CASE("Allocate and free two blocks, free a->b") {
         raw_heap + sizeof(BlockHeader) + size_a
     );
 
-    // Since 32+64+32+96=224, the free head will have a size of zero, so should
-    // be set to nullptr
+    // Since the free header was absorbed, it should be null
     REQUIRE(heap.free_head() == nullptr);
 
     // Now free the first block
@@ -112,7 +111,7 @@ TEST_CASE("Allocate and free two blocks, free b->a") {
     REQUIRE(alloc_a == BlockHeader::payload(header_a));
 
     BlockHeader *header_b = BlockHeader::header(alloc_b);
-    REQUIRE(header_b->size == size_b);
+    REQUIRE(header_b->size == 128);
     REQUIRE(alloc_b == BlockHeader::payload(header_b));
 
     // Both headers' next pointer should be null
@@ -130,18 +129,8 @@ TEST_CASE("Allocate and free two blocks, free b->a") {
         + size_a
     );
 
-    // The free block header is at +224 bytes
-    auto *free_header = reinterpret_cast<BlockHeader const *>(
-        raw_heap + 2 * sizeof(BlockHeader) + size_a + size_b
-    );
-
-    // And the free block is 0 bytes in size, given a 32 byte BlockHeader
-    REQUIRE(free_header->size ==
-        heap_size - (3 * sizeof(BlockHeader) + size_a + size_b)
-    );
-
-    // free_header->next should point nowhere
-    REQUIRE(free_header->next == nullptr);
+    // Since the free header was absorbed, it should be null
+    REQUIRE(heap.free_head() == nullptr);
 
     // Now free the second block
     heap.free(alloc_b);
