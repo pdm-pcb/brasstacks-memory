@@ -23,7 +23,7 @@ target_include_directories(
 if(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
     target_compile_options(
         ${LIBRARY_TARGET} PUBLIC
-        "-Wall"             # All, extra, and pedantic warnings
+        "-Wall" # All, extra, and pedantic warnings
         "-Wextra"
         "-pedantic"
     )
@@ -45,7 +45,7 @@ elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
     if(CMAKE_C_COMPILER MATCHES "clang")
         target_compile_options(
             ${LIBRARY_TARGET} PUBLIC
-            "-Wall"             # All, extra, and pedantic warnings
+            "-Wall" # All, extra, and pedantic warnings
             "-Wextra"
             "-pedantic"
         )
@@ -104,6 +104,7 @@ set_target_properties(
 	${LIBRARY_TARGET} PROPERTIES
 	CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
+	CXX_EXTENSIONS OFF
 
 	ARCHIVE_OUTPUT_DIRECTORY_DEBUG   ${CMAKE_SOURCE_DIR}/debug/lib
     LIBRARY_OUTPUT_DIRECTORY_DEBUG   ${CMAKE_SOURCE_DIR}/debug/lib
