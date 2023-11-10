@@ -18,25 +18,27 @@ file(
     "*.hpp"
 )
 
+set(BINARY_TARGET brasstacks_memory_tests)
+
 add_executable(
-    brasstacks-memory-tests
+    ${BINARY_TARGET}
 	${TESTS_SOURCE}
 	${TESTS_HEADERS}
 )
 
 target_include_directories(
-    brasstacks-memory-tests PUBLIC
+    ${BINARY_TARGET} PUBLIC
     ${CMAKE_SOURCE_DIR}
 )
 
 target_link_libraries(
-	brasstacks-memory-tests PUBLIC
+    ${BINARY_TARGET} PUBLIC
 	brasstacks_memory
     Catch2::Catch2WithMain
 )
 
 set_target_properties(
-	brasstacks-memory-tests PROPERTIES
+    ${BINARY_TARGET} PROPERTIES
 	CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
 

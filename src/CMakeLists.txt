@@ -7,20 +7,22 @@ file(
     "${CMAKE_SOURCE_DIR}/include/brasstacks_memory/*.hpp"
 )
 
+set(LIBRARY_TARGET brasstacks_memory)
+
 add_library(
-    brasstacks_memory STATIC
+    ${LIBRARY_TARGET} STATIC
 	${LIBRARY_SOURCE}
     ${LIBRARY_HEADERS}
 )
 
 target_include_directories(
-    brasstacks_memory PUBLIC
+    ${LIBRARY_TARGET} PUBLIC
     ${CMAKE_SOURCE_DIR}/include/
 )
 
 if(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
     target_compile_options(
-        brasstacks_memory PUBLIC
+        ${LIBRARY_TARGET} PUBLIC
         "-Wall"             # All, extra, and pedantic warnings
         "-Wextra"
         "-pedantic"
@@ -28,13 +30,13 @@ if(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
 
     if(CMAKE_BUILD_TYPE MATCHES "Debug")
         target_compile_options(
-            brasstacks_memory PUBLIC
+            ${LIBRARY_TARGET} PUBLIC
             "-O0"       # No optimization
             "-ggdb3"    # All the gdb flags
         )
     elseif(CMAKE_BUILD_TYPE MATCHES "Release")
         target_compile_options(
-            brasstacks_memory PUBLIC
+            ${LIBRARY_TARGET} PUBLIC
             "-O3"           # Healthy optimization
             "-ffast-math"   # Gotta go fast
         )
@@ -42,7 +44,7 @@ if(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
 elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
     if(CMAKE_C_COMPILER MATCHES "clang")
         target_compile_options(
-            brasstacks_memory PUBLIC
+            ${LIBRARY_TARGET} PUBLIC
             "-Wall"             # All, extra, and pedantic warnings
             "-Wextra"
             "-pedantic"
@@ -50,26 +52,26 @@ elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
 
         if(CMAKE_BUILD_TYPE MATCHES "Debug")
             target_compile_options(
-                brasstacks_memory PUBLIC
+                ${LIBRARY_TARGET} PUBLIC
                 "-O0"       # No optimization
                 "-ggdb3"    # All the gdb flags
             )
         elseif(CMAKE_BUILD_TYPE MATCHES "Release")
             target_compile_options(
-                brasstacks_memory PUBLIC
+                ${LIBRARY_TARGET} PUBLIC
                 "-O3"           # Healthy optimization
                 "-ffast-math"   # Gotta go fast
             )
         endif()
     else()
         target_compile_definitions(
-            brasstacks_memory PUBLIC
+            ${LIBRARY_TARGET} PUBLIC
             "_CRT_SECURE_NO_WARNINGS" # Ignore "may be unsafe" warnings
             "WIN64"                   # Prefer 64 bit address space
         )
 
         target_compile_options(
-            brasstacks_memory PUBLIC
+            ${LIBRARY_TARGET} PUBLIC
             "/nologo"  # Suppress copyright message
             "/W4"	   # Warnin's
             "/wd4312"  # Disable the warning for casting to a larger size
@@ -78,7 +80,7 @@ elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
 
         if(CMAKE_BUILD_TYPE MATCHES "Debug")
             target_compile_options(
-                brasstacks_memory PUBLIC
+                ${LIBRARY_TARGET} PUBLIC
                 "/JMC"      # Just-My-Code
                 "/Zi"		# Debugging information
                 "/RTC1"     # Runtime checks
@@ -89,7 +91,7 @@ elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
             )
         elseif(CMAKE_BUILD_TYPE MATCHES "Release")
             target_compile_options(
-                brasstacks_memory PUBLIC
+                ${LIBRARY_TARGET} PUBLIC
                 "/O2"         # Optimization not disabled =D
                 "/fp:fast"    # Gotta go fast
                 "/GS-"        # No buffer overrun checks
@@ -99,7 +101,7 @@ elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
 endif()
 
 set_target_properties(
-	brasstacks_memory PROPERTIES
+	${LIBRARY_TARGET} PROPERTIES
 	CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
 
