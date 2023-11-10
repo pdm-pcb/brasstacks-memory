@@ -46,19 +46,19 @@ TEST_CASE("Allocate four blocks, free a and c, then allocate a block that's "
     REQUIRE(header_d->size == size_d);
     REQUIRE(alloc_d == BlockHeader::payload(header_d));
 
+    // Check the physical locations in memory
+    auto const *raw_heap = reinterpret_cast<std::uint8_t const *>(header_a);
+    REQUIRE(reinterpret_cast<std::uint8_t *>(header_a) == raw_heap);
+    REQUIRE(reinterpret_cast<std::uint8_t *>(header_b) == raw_heap + 128);
+    REQUIRE(reinterpret_cast<std::uint8_t *>(header_c) == raw_heap + 288);
+    REQUIRE(reinterpret_cast<std::uint8_t *>(header_d) == raw_heap + 576);
+
     // And the free block is 32 bytes in size, given a 32 byte BlockHeader
-    BlockHeader const *free_header = heap.free_head();
+    auto const *free_header =
+        reinterpret_cast<BlockHeader const *>(raw_heap + 1120);
     REQUIRE(free_header->size == 128);
     REQUIRE(free_header->next == nullptr);
     REQUIRE(free_header->prev == nullptr);
-
-    // Check the physical locations in memory
-    uint8_t const *raw_heap = heap.raw_heap();
-    REQUIRE(reinterpret_cast<uint8_t *>(header_a) == raw_heap);
-    REQUIRE(reinterpret_cast<uint8_t *>(header_b) == raw_heap + 128);
-    REQUIRE(reinterpret_cast<uint8_t *>(header_c) == raw_heap + 288);
-    REQUIRE(reinterpret_cast<uint8_t *>(header_d) == raw_heap + 576);
-    REQUIRE(reinterpret_cast<uint8_t const *>(free_header) == raw_heap + 1120);
 
     //--------------------------------------------------------------------------
     // Free alloc_a
@@ -134,7 +134,7 @@ TEST_CASE("Allocate four blocks, free a and c, then allocate a block that's "
     REQUIRE(header_e == header_c);
 
     auto *free_half_of_c =  reinterpret_cast<BlockHeader *>(
-        reinterpret_cast<uint8_t *>(header_e)
+        reinterpret_cast<std::uint8_t *>(header_e)
         + sizeof(BlockHeader)
         + size_e
     );

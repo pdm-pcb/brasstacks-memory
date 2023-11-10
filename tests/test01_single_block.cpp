@@ -30,11 +30,10 @@ TEST_CASE("Allocate and free a single block") {
     REQUIRE(header_a->next == nullptr);
 
     // The header for our sole allocation is at the very beginning of the heap
-    auto const *raw_heap = heap.raw_heap();
-    REQUIRE(reinterpret_cast<uint8_t *>(header_a) == raw_heap);
+    auto *raw_heap = reinterpret_cast<std::uint8_t *>(header_a);
 
     // The free block header is now at +96 bytes
-    auto const *free_header = reinterpret_cast<BlockHeader const *>(
+    auto *free_header = reinterpret_cast<BlockHeader *>(
         raw_heap + sizeof(BlockHeader) + header_a->size
     );
 
@@ -45,6 +44,7 @@ TEST_CASE("Allocate and free a single block") {
 
     // free_header->next should point nowhere
     REQUIRE(free_header->next == nullptr);
+    REQUIRE(free_header->prev == nullptr);
 
     // Now free the block
     heap.free(alloc_a);
@@ -80,10 +80,6 @@ TEST_CASE("Allocate and free a single block, filling the heap") {
     REQUIRE(header_a->size == size_a);
     REQUIRE(alloc_a == BlockHeader::payload(header_a));
     REQUIRE(header_a->next == nullptr);
-
-    // The header for our sole allocation is at the very beginning of the heap
-    auto const *raw_heap = heap.raw_heap();
-    REQUIRE(reinterpret_cast<uint8_t *>(header_a) == raw_heap);
 
     // Now free the block
     heap.free(alloc_a);

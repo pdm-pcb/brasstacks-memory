@@ -3,26 +3,25 @@
 
 #include "brasstacks/memory/BlockHeader.hpp"
 
-#include <cstddef>
 #include <cstdint>
 
-namespace btx::memory {
+// This allocator is designed for use on systems where pointers are powers of
+// two in size.
+#include <bit>
+static_assert(std::has_single_bit(sizeof(void *)));
 
-struct BlockHeader;
+namespace btx::memory {
 
 class Heap final {
 public:
     [[nodiscard]] void * alloc(std::size_t const req_bytes);
     void free(void *address);
 
-    [[nodiscard]] std::size_t total_size()     const { return _total_size;     }
-    [[nodiscard]] std::size_t current_used()   const { return _current_used;   }
-    [[nodiscard]] std::size_t current_allocs() const { return _current_allocs; }
-    [[nodiscard]] std::size_t peak_used()      const { return _peak_used;      }
-    [[nodiscard]] std::size_t peak_allocs()    const { return _peak_allocs;    }
-
-    [[nodiscard]] uint8_t     const * raw_heap()  const { return _raw_heap; }
-    [[nodiscard]] BlockHeader const * free_head() const { return _free_head; }
+    [[nodiscard]] auto total_size()     const { return _total_size;     }
+    [[nodiscard]] auto current_used()   const { return _current_used;   }
+    [[nodiscard]] auto current_allocs() const { return _current_allocs; }
+    [[nodiscard]] auto peak_used()      const { return _peak_used;      }
+    [[nodiscard]] auto peak_allocs()    const { return _peak_allocs;    }
 
     [[nodiscard]] float calc_fragmentation() const;
 
@@ -38,16 +37,19 @@ public:
     Heap & operator=(Heap const &) = delete;
 
 private:
-    uint8_t     *_raw_heap;
-    BlockHeader *_free_head;
+    std::uint8_t *_raw_heap;
+    BlockHeader  *_free_head;
 
-    std::size_t _total_size;
+    std::size_t const _total_size;
     std::size_t _current_used;
     std::size_t _current_allocs;
     std::size_t _peak_used;
     std::size_t _peak_allocs;
 
     static std::size_t constexpr _min_alloc_bytes = sizeof(BlockHeader);
+
+    static std::size_t _round_bytes(std::size_t const req_bytes,
+                                    std::int32_t const round_to_nearest);
 
     void _split_free_block(BlockHeader *header, std::size_t const bytes);
     void _use_whole_free_block(BlockHeader *header);

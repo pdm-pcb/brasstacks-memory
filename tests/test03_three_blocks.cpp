@@ -39,13 +39,12 @@ TEST_CASE("Allocate and free three blocks, free a->b->c") {
     REQUIRE(alloc_c == BlockHeader::payload(header_c));
 
     // Check the physical locations in memory
-    auto const *raw_heap = heap.raw_heap();
-    REQUIRE(reinterpret_cast<uint8_t *>(header_a) == raw_heap);
-    REQUIRE(reinterpret_cast<uint8_t *>(header_b) == raw_heap + 96);
-    REQUIRE(reinterpret_cast<uint8_t *>(header_c) == raw_heap + 224);
+    auto *raw_heap = reinterpret_cast<std::uint8_t *>(header_a);
+    REQUIRE(reinterpret_cast<std::uint8_t *>(header_b) == raw_heap + 96);
+    REQUIRE(reinterpret_cast<std::uint8_t *>(header_c) == raw_heap + 224);
 
     // And the free block is 96 bytes in size, given a 32 byte BlockHeader
-    auto const *free_header = heap.free_head();
+    auto *free_header = reinterpret_cast<BlockHeader *>(raw_heap + 384);
     REQUIRE(free_header->size == 96);
 
     //--------------------------------------------------------------------------
@@ -149,7 +148,8 @@ TEST_CASE("Allocate and free three blocks, free a->c->b") {
     BlockHeader *header_b = BlockHeader::header(alloc_b);
     BlockHeader *header_c = BlockHeader::header(alloc_c);
 
-    auto const *free_header = heap.free_head();
+    auto *raw_heap = reinterpret_cast<std::uint8_t *>(header_a);
+    auto *free_header = reinterpret_cast<BlockHeader *>(raw_heap + 384);
 
     //--------------------------------------------------------------------------
     // Free the first block
@@ -247,7 +247,8 @@ TEST_CASE("Allocate and free three blocks, free b->a->c") {
     BlockHeader *header_b = BlockHeader::header(alloc_b);
     BlockHeader *header_c = BlockHeader::header(alloc_c);
 
-    auto const *free_header = heap.free_head();
+    auto *raw_heap = reinterpret_cast<std::uint8_t *>(header_a);
+    auto *free_header = reinterpret_cast<BlockHeader *>(raw_heap + 384);
 
     //--------------------------------------------------------------------------
     // Free the first block
@@ -350,7 +351,8 @@ TEST_CASE("Allocate and free three blocks, free b->c->a") {
     BlockHeader *header_b = BlockHeader::header(alloc_b);
     BlockHeader *header_c = BlockHeader::header(alloc_c);
 
-    auto const *free_header = heap.free_head();
+    auto *raw_heap = reinterpret_cast<std::uint8_t *>(header_a);
+    auto *free_header = reinterpret_cast<BlockHeader *>(raw_heap + 384);
 
     //--------------------------------------------------------------------------
     // Free the first block
@@ -449,7 +451,8 @@ TEST_CASE("Allocate and free three blocks, free c->a->b") {
     BlockHeader *header_b = BlockHeader::header(alloc_b);
     BlockHeader *header_c = BlockHeader::header(alloc_c);
 
-    auto const *free_header = heap.free_head();
+    auto *raw_heap = reinterpret_cast<std::uint8_t *>(header_a);
+    auto *free_header = reinterpret_cast<BlockHeader *>(raw_heap + 384);
 
     //--------------------------------------------------------------------------
     // Free the first block
@@ -546,7 +549,8 @@ TEST_CASE("Allocate and free three blocks, free c->b->a") {
     BlockHeader *header_b = BlockHeader::header(alloc_b);
     BlockHeader *header_c = BlockHeader::header(alloc_c);
 
-    auto const *free_header = heap.free_head();
+    auto *raw_heap = reinterpret_cast<std::uint8_t *>(header_a);
+    auto *free_header = reinterpret_cast<BlockHeader *>(raw_heap + 384);
 
     //--------------------------------------------------------------------------
     // Free the first block

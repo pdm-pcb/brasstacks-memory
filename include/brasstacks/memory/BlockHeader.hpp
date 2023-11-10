@@ -2,21 +2,18 @@
 #define BRASSTACKS_MEMORY_BLOCKHEADER_HPP
 
 #include <cstddef>
-#include <cstdint>
 
 namespace btx::memory {
 
-struct alignas(16) BlockHeader final {
+struct alignas(32) BlockHeader final {
 public:
     // Convenience functions for common casting and pointer math
     [[nodiscard]] static inline BlockHeader * header(void *address) {
-        return reinterpret_cast<BlockHeader *>(
-            reinterpret_cast<uint8_t *>(address) - sizeof(BlockHeader)
-        );
+        return reinterpret_cast<BlockHeader *>(address) - 1;
     }
 
     [[nodiscard]] static inline void * payload(BlockHeader *header) {
-        return reinterpret_cast<uint8_t *>(header) + sizeof(BlockHeader);
+        return header + 1;
     }
 
     // No constructors because BlockHeader is intended to be used as a means by

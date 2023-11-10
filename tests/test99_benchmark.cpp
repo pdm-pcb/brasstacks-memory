@@ -14,6 +14,8 @@ constexpr std::size_t alloc_count = 1000;
 constexpr std::size_t min_alloc_size = 1 << 4;
 constexpr std::size_t max_alloc_size = 1 << 8;
 
+//*
+
 TEST_CASE("Benchmarking""[!benchmark]") {
     // The first thing we need is a good ol' RNG on which to base our ranges
     std::random_device dev;
@@ -66,16 +68,16 @@ TEST_CASE("Benchmarking""[!benchmark]") {
     std::fill(allocs.begin(), allocs.end(), nullptr);
 
     // Test plain malloc() and free()
-    BENCHMARK("libstdc malloc and free benchmark") {
+    BENCHMARK("libstdc malloc and free") {
         return [&] {
             std::size_t alloc = 0;
 
             // Allocate the first half
             do {
-                allocs[alloc] = ::malloc(alloc_sizes[alloc]);
+                allocs[alloc] = std::malloc(alloc_sizes[alloc]);
 
                 // Zero the memory
-                ::memset(allocs[alloc], 0, alloc_sizes[alloc]);
+                std::memset(allocs[alloc], 0, alloc_sizes[alloc]);
 
                 // Write some "useful" information
                 auto *new_block = static_cast<std::size_t *>(allocs[alloc]);
@@ -91,10 +93,10 @@ TEST_CASE("Benchmarking""[!benchmark]") {
 
             // Allocate the second half
             do {
-                allocs[alloc] = ::malloc(alloc_sizes[alloc]);
+                allocs[alloc] = std::malloc(alloc_sizes[alloc]);
 
                 // Same nonosense as above
-                ::memset(allocs[alloc], 0, alloc_sizes[alloc]);
+                std::memset(allocs[alloc], 0, alloc_sizes[alloc]);
                 auto *new_block = static_cast<std::size_t *>(allocs[alloc]);
                 *new_block = alloc_sizes[alloc];
 
@@ -103,7 +105,7 @@ TEST_CASE("Benchmarking""[!benchmark]") {
 
             // Free the second half in random order
             for(auto const index : free_order_second_half) {
-                ::free(allocs[index]);
+                std::free(allocs[index]);
             }
         };
     };
@@ -121,7 +123,7 @@ TEST_CASE("Benchmarking""[!benchmark]") {
     Heap heap(heap_size_rng());
 
     // And test its performance
-    BENCHMARK("btx::memory alloc and free benchmark") {
+    BENCHMARK("btx::memory alloc and free") {
         return [&] {
             std::size_t alloc = 0;
 
@@ -130,7 +132,7 @@ TEST_CASE("Benchmarking""[!benchmark]") {
                 allocs[alloc] = heap.alloc(alloc_sizes[alloc]);
 
                 // Zero the memory
-                ::memset(allocs[alloc], 0, alloc_sizes[alloc]);
+                std::memset(allocs[alloc], 0, alloc_sizes[alloc]);
 
                 // Write some "useful" information
                 auto *new_block = static_cast<std::size_t *>(allocs[alloc]);
@@ -149,7 +151,7 @@ TEST_CASE("Benchmarking""[!benchmark]") {
                 allocs[alloc] = heap.alloc(alloc_sizes[alloc]);
 
                 // Same nonosense as above
-                ::memset(allocs[alloc], 0, alloc_sizes[alloc]);
+                std::memset(allocs[alloc], 0, alloc_sizes[alloc]);
                 auto *new_block = static_cast<std::size_t *>(allocs[alloc]);
                 *new_block = alloc_sizes[alloc];
 
@@ -163,3 +165,5 @@ TEST_CASE("Benchmarking""[!benchmark]") {
         };
     };
 }
+
+// */

@@ -40,19 +40,14 @@ TEST_CASE("Allocate and free two blocks, free a->b") {
     REQUIRE(header_a->prev == nullptr);
     REQUIRE(header_b->next == nullptr);
     REQUIRE(header_b->prev == nullptr);
-    REQUIRE(heap.free_head() == nullptr);
 
     // The first header is at the very beginning of the heap
-    uint8_t const *raw_heap = heap.raw_heap();
-    REQUIRE(reinterpret_cast<uint8_t *>(header_a) == raw_heap);
+    auto *raw_heap = reinterpret_cast<std::uint8_t *>(header_a);
 
     // The second header is at +96 bytes
-    REQUIRE(reinterpret_cast<uint8_t *>(header_b) ==
+    REQUIRE(reinterpret_cast<std::uint8_t *>(header_b) ==
         raw_heap + sizeof(BlockHeader) + size_a
     );
-
-    // Since the free header was absorbed, it should be null
-    REQUIRE(heap.free_head() == nullptr);
 
     // Now free the first block
     heap.free(alloc_a);
@@ -66,7 +61,6 @@ TEST_CASE("Allocate and free two blocks, free a->b") {
     // Given that header_a is now free, it should be the new head of the free
     // list. Its size is unchanged and its pointers are null because it's the
     // only member of the list
-    REQUIRE(heap.free_head() == header_a);
     REQUIRE(header_a->size == size_a);
     REQUIRE(header_a->prev == nullptr);
     REQUIRE(header_a->prev == nullptr);
@@ -119,18 +113,14 @@ TEST_CASE("Allocate and free two blocks, free b->a") {
     REQUIRE(header_b->next == nullptr);
 
     // The first header is at the very beginning of the heap
-    uint8_t const *raw_heap = heap.raw_heap();
-    REQUIRE(reinterpret_cast<uint8_t *>(header_a) == raw_heap);
+    auto *raw_heap = reinterpret_cast<std::uint8_t *>(header_a);
 
     // The second header is at +96 bytes
-    REQUIRE(reinterpret_cast<uint8_t *>(header_b) ==
+    REQUIRE(reinterpret_cast<std::uint8_t *>(header_b) ==
         raw_heap
         + sizeof(BlockHeader)
         + size_a
     );
-
-    // Since the free header was absorbed, it should be null
-    REQUIRE(heap.free_head() == nullptr);
 
     // Now free the second block
     heap.free(alloc_b);

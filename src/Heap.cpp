@@ -1,6 +1,6 @@
 #include "brasstacks/memory/Heap.hpp"
 
-#include <cassert>
+#include <cstdio>
 #include <cstdlib>
 
 namespace btx::memory {
@@ -32,18 +32,11 @@ float Heap::calc_fragmentation() const {
 // =============================================================================
 void * Heap::alloc(std::size_t const req_bytes) {
     if(req_bytes <= 0) {
-        assert(false && "Cannot allocate zero or fewer bytes");
-        return nullptr;
+        std::fprintf(stderr, "Cannot allocate %zu bytes", req_bytes);
+        std::abort();
     }
 
-    std::size_t bytes = req_bytes;
-
-    if(bytes < _min_alloc_bytes) {
-        bytes = _min_alloc_bytes;
-    }
-
-    int32_t constexpr ALIGN = sizeof(void *);
-    bytes = (bytes + ALIGN - 1) & -ALIGN;
+    std::size_t const bytes = _round_bytes(req_bytes, sizeof(void *));
 
     // Find a free block with sufficient space available
     auto *current_header = _free_head;
@@ -78,8 +71,8 @@ void * Heap::alloc(std::size_t const req_bytes) {
     // We couldn't find a block of sufficient size, so the allocation has
     // failed and the user will need to handle it how they see fit
     if(current_header == nullptr) {
-        assert(false && "Failed to allocate block");
-        return nullptr;
+        std::fprintf(stderr, "Failed to allocate block of size %zu", bytes);
+        std::abort();
     }
 
     // Update the heap's metrics
@@ -101,8 +94,8 @@ void * Heap::alloc(std::size_t const req_bytes) {
 // =============================================================================
 void Heap::free(void *address) {
     if(address == nullptr) {
-        assert(false && "Attempting to free memory twice");
-        return;
+        std::fprintf(stderr, "Attempting to free memory twice");
+        std::abort();
     }
 
     // Grab the associated header from the user's pointer
@@ -158,44 +151,48 @@ void Heap::free(void *address) {
 
 // =============================================================================
 Heap::Heap(std::size_t const req_bytes) :
-    _raw_heap       { nullptr },
+    _total_size     { _round_bytes(req_bytes, _min_alloc_bytes) },
     _current_used   { sizeof(BlockHeader) },
     _current_allocs { 0 },
     _peak_used      { sizeof(BlockHeader) },
     _peak_allocs    { 0 }
 {
-    if(req_bytes <= 0) {
-        assert(false && "Cannot allocate zero sized heap");
-        return;
+    _raw_heap = static_cast<std::uint8_t *>(std::malloc(_total_size));
+
+    if(_raw_heap == nullptr) {
+        std::fprintf(stderr, "Heap allocation failed");
+        std::abort();
     }
-
-    // So long as BlockHeader's size is a power of two, this rounding to a
-    // multiple math is safe
-    int32_t constexpr ALIGN = sizeof(BlockHeader) * 2;
-    std::size_t const bytes = (req_bytes + ALIGN - 1) & -ALIGN;
-
-    _total_size = bytes;
-
-    _raw_heap = reinterpret_cast<uint8_t *>(::malloc(_total_size));
-
-    assert(_raw_heap != nullptr && "Heap allocation failed");
 
     _free_head = reinterpret_cast<BlockHeader *>(_raw_heap);
 
-    _free_head->size = bytes - sizeof(BlockHeader);
+    _free_head->size = _total_size - sizeof(BlockHeader);
     _free_head->next = nullptr;
     _free_head->prev = nullptr;
 }
 
 Heap::~Heap() {
-    ::free(_raw_heap);
+    std::free(_raw_heap);
+}
+
+// =============================================================================
+std::size_t Heap::_round_bytes(std::size_t const req_bytes,
+                               std::int32_t const round_to_nearest)
+{
+    // All we're doing here is helping to keep the math and bookkeeping simpler
+    std::size_t bytes = req_bytes;
+
+    // This math only works if round_to_nearest is a power of 2
+    bytes = (bytes + round_to_nearest - 1) & -round_to_nearest;
+
+    return bytes;
 }
 
 // =============================================================================
 void Heap::_split_free_block(BlockHeader *header, std::size_t const bytes) {
     // Reinterpret the space just beyond what's requested as a new free block
     auto *new_free_header = reinterpret_cast<BlockHeader *>(
-        reinterpret_cast<uint8_t *>(header)
+        reinterpret_cast<std::uint8_t *>(header)
         + sizeof(BlockHeader)
         + bytes
     );
@@ -255,7 +252,7 @@ void Heap::_coalesce(BlockHeader *header) {
         // location as header->next, that means the blocks are contiguous and
         // can be merged
         auto *next_header_from_offset = reinterpret_cast<BlockHeader *>(
-            reinterpret_cast<uint8_t *>(BlockHeader::payload(header))
+            reinterpret_cast<std::uint8_t *>(BlockHeader::payload(header))
             + header->size
         );
 
@@ -283,7 +280,7 @@ void Heap::_coalesce(BlockHeader *header) {
         // This is the same strategy as above, but measuring forward from
         // header->prev
         auto *prev_header_from_offset = reinterpret_cast<BlockHeader *>(
-            reinterpret_cast<uint8_t *>(BlockHeader::payload(header->prev))
+            reinterpret_cast<std::uint8_t *>(BlockHeader::payload(header->prev))
             + header->prev->size
         );
 
