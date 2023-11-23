@@ -1,17 +1,18 @@
-cmake_minimum_required(VERSION 3.20) # This minimum requirement allows us to not
-                                     # worry whether CMake is automatically
-                                     # adding the RTTI enable flag to an MSVC
-                                     # build
+cmake_minimum_required(VERSION 3.23) # Required for File Sets
 
 project(
     brasstacks_memory
     VERSION 0.1.0
-    DESCRIPTION "Simple memory management for learning and video games"
-    LANGUAGES CXX C
+    DESCRIPTION "A simple heap allocator for learning and video games."
+    LANGUAGES CXX
 )
+
+add_library(${PROJECT_NAME} STATIC)
+add_library(brasstacks::memory ALIAS ${PROJECT_NAME})
 
 add_subdirectory(src)
 
-if (${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_SOURCE_DIR})
-    add_subdirectory(tests)
+# Only touch test when we're not being pulled in by something else
+if(PROJECT_IS_TOP_LEVEL)
+    add_subdirectory(test)
 endif()

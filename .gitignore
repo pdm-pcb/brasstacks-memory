@@ -8,3 +8,5 @@ release/
 **/*.pdb
 **/*.exe.manifest
 **/*.exe
+
+src/version.hpp

@@ -1,114 +1,142 @@
 file(
-    GLOB_RECURSE LIBRARY_SOURCE
-    "${CMAKE_SOURCE_DIR}/src/*.cpp"
+    GLOB_RECURSE PROJECT_SOURCES
+    "${PROJECT_SOURCE_DIR}/src/*.cpp"
 )
+
 file(
-    GLOB_RECURSE LIBRARY_HEADERS
-    "${CMAKE_SOURCE_DIR}/include/brasstacks_memory/*.hpp"
+    GLOB_RECURSE PROJECT_HEADERS
+    "${PROJECT_SOURCE_DIR}/include/*.hpp"
 )
 
-set(LIBRARY_TARGET brasstacks_memory)
-
-add_library(
-    ${LIBRARY_TARGET} STATIC
-	${LIBRARY_SOURCE}
-    ${LIBRARY_HEADERS}
+configure_file(
+    "${PROJECT_SOURCE_DIR}/src/version.hpp.in"
+    "${PROJECT_SOURCE_DIR}/src/version.hpp"
 )
 
-target_include_directories(
-    ${LIBRARY_TARGET} PUBLIC
-    ${CMAKE_SOURCE_DIR}/include/
+target_sources(
+    ${PROJECT_NAME}
+    PRIVATE
+        "${PROJECT_SOURCES}"
+    PUBLIC
+        FILE_SET HEADERS
+        BASE_DIRS "${PROJECT_SOURCE_DIR}/include/"
+        FILES "${PROJECT_HEADERS}"
 )
 
-if(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+include(FetchContent)
+FetchContent_Declare(
+    brasstacks_log EXCLUDE_FROM_ALL SYSTEM
+    GIT_REPOSITORY https://github.com/pdm-pcb/brasstacks-log
+    GIT_TAG main
+)
+FetchContent_MakeAvailable(brasstacks_log)
+
+target_link_libraries(
+    ${PROJECT_NAME} PRIVATE
+    brasstacks::log
+)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR
+   CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(
-        ${LIBRARY_TARGET} PUBLIC
-        "-Wall" # All, extra, and pedantic warnings
+        ${PROJECT_NAME} PRIVATE
+        "-Wall"         # Enable most warnings
         "-Wextra"
-        "-pedantic"
+        "-pedantic"     # and language compliance checks
     )
+
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(
+            ${PROJECT_NAME} PRIVATE
+            "-Weverything"      # Clang supports enabling all possible warnings
+            "-Wno-c++98-compat" # ...which means some must then be disabled
+            "-Wno-c++98-compat-pedantic"
+            "-Wno-newline-eof"
+
+            "-Wno-unsafe-buffer-usage" # Pointer math is necessary
+        )
+    endif()
+
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64")
+        target_compile_options(
+            ${PROJECT_NAME} PRIVATE
+            "-march=x86-64-v3"    # Target Haswell/Excavator or newer
+            "-mtune=x86-64-v3"
+        )
+    endif()
 
     if(CMAKE_BUILD_TYPE MATCHES "Debug")
         target_compile_options(
-            ${LIBRARY_TARGET} PUBLIC
+            ${PROJECT_NAME} PRIVATE
             "-O0"       # No optimization
             "-ggdb3"    # All the gdb flags
         )
     elseif(CMAKE_BUILD_TYPE MATCHES "Release")
         target_compile_options(
-            ${LIBRARY_TARGET} PUBLIC
-            "-O3"           # Healthy optimization
-            "-ffast-math"   # Gotta go fast
+            ${PROJECT_NAME} PRIVATE
+            "-O3"       # Optimize for speed, sacrifice size
         )
     endif()
-elseif(CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")
-    if(CMAKE_C_COMPILER MATCHES "clang")
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    target_compile_options(
+        ${PROJECT_NAME} PRIVATE
+        "/Wall"         # All warnings not disabled by default
+    )
+
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64")
         target_compile_options(
-            ${LIBRARY_TARGET} PUBLIC
-            "-Wall" # All, extra, and pedantic warnings
-            "-Wextra"
-            "-pedantic"
+            ${PROJECT_NAME} PRIVATE
+            "/arch:AVX2"    # Target Haswell/Excavator or newer
         )
+    endif()
 
-        if(CMAKE_BUILD_TYPE MATCHES "Debug")
-            target_compile_options(
-                ${LIBRARY_TARGET} PUBLIC
-                "-O0"       # No optimization
-                "-ggdb3"    # All the gdb flags
-            )
-        elseif(CMAKE_BUILD_TYPE MATCHES "Release")
-            target_compile_options(
-                ${LIBRARY_TARGET} PUBLIC
-                "-O3"           # Healthy optimization
-                "-ffast-math"   # Gotta go fast
-            )
-        endif()
-    else()
-        target_compile_definitions(
-            ${LIBRARY_TARGET} PUBLIC
-            "_CRT_SECURE_NO_WARNINGS" # Ignore "may be unsafe" warnings
-            "WIN64"                   # Prefer 64 bit address space
-        )
-
+    if(CMAKE_BUILD_TYPE MATCHES "Debug")
         target_compile_options(
-            ${LIBRARY_TARGET} PUBLIC
-            "/nologo"  # Suppress copyright message
-            "/W4"	   # Warnin's
-            "/wd4312"  # Disable the warning for casting to a larger size
-            "/wd4324"  # Disable the warning for padding due to alignas
+            ${PROJECT_NAME} PRIVATE
+            "/Od"       # Optimization disabled
+            "/Zi"		# Generate .pdb files: implies /debug
+            "/JMC"      # Just-My-Code: only step over user code
+            "/RTCs"     # Runtime checks for stack frame behaviors
+            "/RTCu"     # Runtime checks for uninitialized variables
+            "/GS"       # Buffer overrun checks
+            "/sdl"      # Compile and runtime security checks
+            "/diagnostics:column" # Include column in compiler messages
         )
 
-        if(CMAKE_BUILD_TYPE MATCHES "Debug")
-            target_compile_options(
-                ${LIBRARY_TARGET} PUBLIC
-                "/JMC"      # Just-My-Code
-                "/Zi"		# Debugging information
-                "/RTC1"     # Runtime checks
-                "/GS"       # Buffer overrun checks
-                "/sdl"      # Security warnings
-                "/Od"       # Optimization disabled
-                "/diagnostics:column" # Include column in compiler messages
-            )
-        elseif(CMAKE_BUILD_TYPE MATCHES "Release")
-            target_compile_options(
-                ${LIBRARY_TARGET} PUBLIC
-                "/O2"         # Optimization not disabled =D
-                "/fp:fast"    # Gotta go fast
-                "/GS-"        # No buffer overrun checks
-            )
-        endif()
+        target_link_options(
+            ${PROJECT_NAME} PRIVATE
+            "/DEBUG:FULL" # Move private symbol information into single .pdb
+        )
+    elseif(CMAKE_BUILD_TYPE MATCHES "Release")
+        target_compile_options(
+            ${PROJECT_NAME} PRIVATE
+            "/O2"       # Optimize for speed. Implies:
+                        # - global optimization
+                        # - intrinsics
+                        # - "favor fast code"
+                        # - frame/pointer omission
+                        # - inline function expansion
+                        # - eliminate duplicate strings
+                        # - function-level linking
+            "/Ob3"      # More aggressive inline expansions than /O2
+        )
+
+        target_link_options(
+            ${PROJECT_NAME} PRIVATE
+            "/OPT:NOREF"    # Remove unused functions
+        )
     endif()
 endif()
 
 set_target_properties(
-	${LIBRARY_TARGET} PROPERTIES
+	${PROJECT_NAME} PROPERTIES
 	CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
-	CXX_EXTENSIONS OFF
+    CXX_EXTENSIONS OFF
 
-	ARCHIVE_OUTPUT_DIRECTORY_DEBUG   ${CMAKE_SOURCE_DIR}/debug/lib
-    LIBRARY_OUTPUT_DIRECTORY_DEBUG   ${CMAKE_SOURCE_DIR}/debug/lib
+	ARCHIVE_OUTPUT_DIRECTORY_DEBUG   "${CMAKE_SOURCE_DIR}/debug/lib"
+    LIBRARY_OUTPUT_DIRECTORY_DEBUG   "${CMAKE_SOURCE_DIR}/debug/lib"
 
-	ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/release/lib
-	LIBRARY_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR}/release/lib
+	ARCHIVE_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/release/lib"
+	LIBRARY_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/release/lib"
 )

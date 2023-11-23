@@ -49,7 +49,7 @@ private:
     static std::size_t constexpr _min_alloc_bytes = sizeof(BlockHeader);
 
     static std::size_t _round_bytes(std::size_t const req_bytes,
-                                    std::int32_t const round_to_nearest);
+                                    std::size_t const multiple);
 
     void _split_free_block(BlockHeader *header, std::size_t const bytes);
     void _use_whole_free_block(BlockHeader *header);

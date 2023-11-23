@@ -1,4 +1,6 @@
 #include "brasstacks/memory/Heap.hpp"
+#include "brasstacks/log/Log.hpp"
+#include "version.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -32,8 +34,7 @@ float Heap::calc_fragmentation() const {
 // =============================================================================
 void * Heap::alloc(std::size_t const req_bytes) {
     if(req_bytes <= 0) {
-        std::fprintf(stderr, "Cannot allocate %zu bytes", req_bytes);
-        std::abort();
+        Log::critical("Cannot allocate {} bytes", req_bytes);
     }
 
     std::size_t const bytes = _round_bytes(req_bytes, sizeof(void *));
@@ -160,8 +161,7 @@ Heap::Heap(std::size_t const req_bytes) :
     _raw_heap = static_cast<std::uint8_t *>(std::malloc(_total_size));
 
     if(_raw_heap == nullptr) {
-        std::fprintf(stderr, "Heap allocation failed");
-        std::abort();
+        Log::critical("Heap allocation failed");
     }
 
     _free_head = reinterpret_cast<BlockHeader *>(_raw_heap);
@@ -169,23 +169,24 @@ Heap::Heap(std::size_t const req_bytes) :
     _free_head->size = _total_size - sizeof(BlockHeader);
     _free_head->next = nullptr;
     _free_head->prev = nullptr;
+
+    static std::once_flag init;
+    std::call_once(init, [] {
+        Log::info("brasstacks heap allocator v{}", BTX_MEMORY_VER);
+    });
+
+    Log::trace("{} byte heap allocated", _total_size);
 }
 
 Heap::~Heap() {
     std::free(_raw_heap);
 }
-
 // =============================================================================
 std::size_t Heap::_round_bytes(std::size_t const req_bytes,
-                               std::int32_t const round_to_nearest)
+                               std::size_t const multiple)
 {
     // All we're doing here is helping to keep the math and bookkeeping simpler
-    std::size_t bytes = req_bytes;
-
-    // This math only works if round_to_nearest is a power of 2
-    bytes = (bytes + round_to_nearest - 1) & -round_to_nearest;
-
-    return bytes;
+    return ((req_bytes + multiple - 1) / multiple) * multiple;
 }
 
 // =============================================================================

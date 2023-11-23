@@ -1,5 +1,4 @@
 include(FetchContent)
-
 FetchContent_Declare(
     Catch2
     GIT_REPOSITORY https://github.com/catchorg/Catch2.git
@@ -8,37 +7,34 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Catch2)
 
-file(
-    GLOB_RECURSE TESTS_SOURCE
-    "*.cpp"
-)
+set(TEST_TARGET ${PROJECT_NAME}_test)
+add_executable(${TEST_TARGET})
 
 file(
-    GLOB_RECURSE TESTS_HEADERS
-    "*.hpp"
+    GLOB_RECURSE TEST_SOURCES
+    "${PROJECT_SOURCE_DIR}/test/*.cpp"
 )
 
-set(BINARY_TARGET brasstacks_memory_tests)
-
-add_executable(
-    ${BINARY_TARGET}
-	${TESTS_SOURCE}
-	${TESTS_HEADERS}
+file(
+    GLOB_RECURSE TEST_HEADERS
+    "${PROJECT_SOURCE_DIR}/test/*.hpp"
 )
 
-target_include_directories(
-    ${BINARY_TARGET} PUBLIC
-    ${CMAKE_SOURCE_DIR}
+target_sources(
+    ${TEST_TARGET}
+    PRIVATE
+        "${TEST_SOURCES}"
+        "${TEST_HEADERS}"
 )
 
 target_link_libraries(
-    ${BINARY_TARGET} PUBLIC
-	brasstacks_memory
+    ${TEST_TARGET} PUBLIC
+	brasstacks::memory
     Catch2::Catch2WithMain
 )
 
 set_target_properties(
-    ${BINARY_TARGET} PROPERTIES
+    ${TEST_TARGET} PROPERTIES
 	CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
 	CXX_EXTENSIONS OFF
